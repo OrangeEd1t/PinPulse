@@ -1,0 +1,8 @@
+config.json
+debug.log
+*.log
+*.exe
+bin/
+obj/
+.vs/
+.vscode/

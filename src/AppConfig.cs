@@ -1,0 +1,744 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Web.Script.Serialization;
+
+namespace CryptoMonitor
+{
+    internal sealed class AppConfig
+    {
+        public string ApiUrl;
+        public string Language;
+        public string Currency;
+        public int RefreshSeconds;
+        public int RequestTimeoutSeconds;
+        public string DisplayTemplate;
+        public string ItemSeparator;
+        public bool ShowTaskbarWindow;
+        public string TaskbarAnchor;
+        public int TaskbarOffsetX;
+        public int TaskbarOffsetY;
+        public int TaskbarFixedWidth;
+        public int TaskbarMinWidth;
+        public int TaskbarMaxWidth;
+        public List<string> Symbols;
+        public List<ApiItemConfig> Items;
+
+        public static string ConfigFileName = "config.json";
+
+        public AppConfig()
+        {
+            ApiUrl = "https://api.alternative.me/v2/ticker/?convert=USD&limit=10";
+            Language = Localization.DefaultLanguage();
+            Currency = "USD";
+            RefreshSeconds = 300;
+            RequestTimeoutSeconds = 10;
+            DisplayTemplate = "{items}";
+            ItemSeparator = "   ";
+            ShowTaskbarWindow = true;
+            TaskbarAnchor = "left";
+            TaskbarOffsetX = 280;
+            TaskbarOffsetY = 0;
+            TaskbarFixedWidth = 0;
+            TaskbarMinWidth = 190;
+            TaskbarMaxWidth = 520;
+            Symbols = new List<string>();
+            Symbols.Add("BTC");
+            Symbols.Add("ETH");
+            Items = CreateDefaultItems();
+        }
+
+        public static AppConfig Load(string appDir)
+        {
+            string path = Path.Combine(appDir, ConfigFileName);
+            AppConfig config = new AppConfig();
+            if (!File.Exists(path))
+            {
+                config.Save(appDir);
+                return config;
+            }
+
+            try
+            {
+                string json = File.ReadAllText(path);
+                JavaScriptSerializer serializer = new JavaScriptSerializer();
+                Dictionary<string, object> root = serializer.DeserializeObject(json) as Dictionary<string, object>;
+                if (root == null)
+                {
+                    return config;
+                }
+
+                config.ApiUrl = GetString(root, "apiUrl", config.ApiUrl);
+                config.Language = Localization.NormalizeLanguage(GetString(root, "language", config.Language));
+                config.Currency = GetString(root, "currency", config.Currency).ToUpperInvariant();
+                config.RefreshSeconds = Clamp(GetInt(root, "refreshSeconds", config.RefreshSeconds), 30, 86400);
+                config.RequestTimeoutSeconds = Clamp(GetInt(root, "requestTimeoutSeconds", config.RequestTimeoutSeconds), 3, 120);
+                config.DisplayTemplate = GetString(root, "displayTemplate", config.DisplayTemplate);
+                config.ItemSeparator = GetString(root, "itemSeparator", config.ItemSeparator);
+                config.ShowTaskbarWindow = GetBool(root, "showTaskbarWindow", config.ShowTaskbarWindow);
+                config.TaskbarAnchor = NormalizeAnchor(GetString(root, "taskbarAnchor", config.TaskbarAnchor));
+                config.TaskbarOffsetX = Clamp(GetInt(root, "taskbarOffsetX", config.TaskbarOffsetX), -4000, 4000);
+                config.TaskbarOffsetY = Clamp(GetInt(root, "taskbarOffsetY", config.TaskbarOffsetY), -4000, 4000);
+                config.TaskbarFixedWidth = Clamp(GetInt(root, "taskbarFixedWidth", config.TaskbarFixedWidth), 0, 4000);
+                config.TaskbarMinWidth = Clamp(GetInt(root, "taskbarMinWidth", config.TaskbarMinWidth), 80, 4000);
+                config.TaskbarMaxWidth = Clamp(GetInt(root, "taskbarMaxWidth", config.TaskbarMaxWidth), 80, 4000);
+                if (config.TaskbarMaxWidth < config.TaskbarMinWidth)
+                {
+                    config.TaskbarMaxWidth = config.TaskbarMinWidth;
+                }
+
+                object symbolsValue;
+                if (root.TryGetValue("symbols", out symbolsValue))
+                {
+                    ArrayList array = symbolsValue as ArrayList;
+                    object[] objectArray = symbolsValue as object[];
+                    List<string> symbols = new List<string>();
+                    if (array != null)
+                    {
+                        foreach (object item in array)
+                        {
+                            AddSymbol(symbols, item);
+                        }
+                    }
+                    else if (objectArray != null)
+                    {
+                        foreach (object item in objectArray)
+                        {
+                            AddSymbol(symbols, item);
+                        }
+                    }
+
+                    if (symbols.Count > 0)
+                    {
+                        config.Symbols = symbols;
+                    }
+                }
+
+                List<ApiItemConfig> items = ReadItems(root, "items");
+                if (items.Count == 0)
+                {
+                    items = ReadItems(root, "apiItems");
+                }
+
+                if (items.Count > 0)
+                {
+                    config.Items = items;
+                }
+                else
+                {
+                    config.Items = CreateLegacyItems(config);
+                }
+            }
+            catch
+            {
+                // Keep defaults when config is malformed; saving from Settings will rewrite it.
+            }
+
+            return config;
+        }
+
+        public void Save(string appDir)
+        {
+            string path = Path.Combine(appDir, ConfigFileName);
+            Dictionary<string, object> root = new Dictionary<string, object>();
+            root["language"] = Localization.NormalizeLanguage(Language);
+            root["refreshSeconds"] = RefreshSeconds;
+            root["requestTimeoutSeconds"] = RequestTimeoutSeconds;
+            root["displayTemplate"] = String.IsNullOrEmpty(DisplayTemplate) ? "{items}" : DisplayTemplate;
+            root["itemSeparator"] = ItemSeparator;
+            root["showTaskbarWindow"] = ShowTaskbarWindow;
+            root["taskbarAnchor"] = NormalizeAnchor(TaskbarAnchor);
+            root["taskbarOffsetX"] = TaskbarOffsetX;
+            root["taskbarOffsetY"] = TaskbarOffsetY;
+            root["taskbarFixedWidth"] = Clamp(TaskbarFixedWidth, 0, 4000);
+            root["taskbarMinWidth"] = Clamp(TaskbarMinWidth, 80, 4000);
+            root["taskbarMaxWidth"] = Clamp(Math.Max(TaskbarMaxWidth, TaskbarMinWidth), 80, 4000);
+            if (Items != null && Items.Count > 0)
+            {
+                ArrayList items = new ArrayList();
+                foreach (ApiItemConfig item in Items)
+                {
+                    items.Add(item.ToDictionary());
+                }
+
+                root["items"] = items;
+            }
+
+            JavaScriptSerializer serializer = new JavaScriptSerializer();
+            string json = serializer.Serialize(root);
+            File.WriteAllText(path, PrettyJson(json));
+        }
+
+        public string ItemsToJson()
+        {
+            ArrayList items = new ArrayList();
+            if (Items != null)
+            {
+                foreach (ApiItemConfig item in Items)
+                {
+                    if (item != null)
+                    {
+                        items.Add(item.ToDictionary());
+                    }
+                }
+            }
+
+            JavaScriptSerializer serializer = new JavaScriptSerializer();
+            return PrettyJson(serializer.Serialize(items));
+        }
+
+        public static List<ApiItemConfig> ParseItemsJson(string json)
+        {
+            List<ApiItemConfig> items = new List<ApiItemConfig>();
+            if (String.IsNullOrWhiteSpace(json))
+            {
+                return items;
+            }
+
+            JavaScriptSerializer serializer = new JavaScriptSerializer();
+            object value = serializer.DeserializeObject(json);
+            ArrayList array = value as ArrayList;
+            object[] objectArray = value as object[];
+            Dictionary<string, object> root = value as Dictionary<string, object>;
+            if (array != null)
+            {
+                foreach (object item in array)
+                {
+                    AddItem(items, item);
+                }
+            }
+            else if (objectArray != null)
+            {
+                foreach (object item in objectArray)
+                {
+                    AddItem(items, item);
+                }
+            }
+            else if (root != null)
+            {
+                List<ApiItemConfig> nestedItems = ReadItems(root, "items");
+                if (nestedItems.Count == 0)
+                {
+                    nestedItems = ReadItems(root, "apiItems");
+                }
+
+                if (nestedItems.Count > 0)
+                {
+                    return nestedItems;
+                }
+
+                AddItem(items, root);
+            }
+            else
+            {
+                throw new InvalidOperationException("API items must be a JSON array or object.");
+            }
+
+            return items;
+        }
+
+        private static List<ApiItemConfig> CreateDefaultItems()
+        {
+            List<ApiItemConfig> items = new List<ApiItemConfig>();
+            items.Add(CreateAlternativeMeItem("BTC", "1", "USD", "https://api.alternative.me/v2/ticker/?convert=USD&limit=10", 300, 10));
+            items.Add(CreateAlternativeMeItem("ETH", "1027", "USD", "https://api.alternative.me/v2/ticker/?convert=USD&limit=10", 300, 10));
+            return items;
+        }
+
+        private static List<ApiItemConfig> CreateLegacyItems(AppConfig config)
+        {
+            List<ApiItemConfig> items = new List<ApiItemConfig>();
+            string[] symbols = config.GetSymbols();
+            for (int i = 0; i < symbols.Length; i++)
+            {
+                string dataId = AlternativeMeDataId(symbols[i]);
+                if (dataId.Length > 0)
+                {
+                    items.Add(CreateAlternativeMeItem(symbols[i], dataId, config.Currency, config.ApiUrl, config.RefreshSeconds, config.RequestTimeoutSeconds));
+                }
+            }
+
+            if (items.Count == 0)
+            {
+                items = CreateDefaultItems();
+            }
+
+            return items;
+        }
+
+        private static ApiItemConfig CreateAlternativeMeItem(string symbol, string dataId, string currency, string url, int intervalSeconds, int timeoutSeconds)
+        {
+            ApiItemConfig item = new ApiItemConfig();
+            item.Id = symbol.ToLowerInvariant();
+            item.Name = symbol.ToUpperInvariant();
+            item.Enabled = true;
+            item.Url = url;
+            item.Method = "GET";
+            item.Template = symbol.ToUpperInvariant() + " ${$.data." + dataId + ".quotes." + currency.ToUpperInvariant() + ".price:0.00}";
+            item.IntervalSeconds = intervalSeconds;
+            item.TimeoutSeconds = timeoutSeconds;
+            return item;
+        }
+
+        private static string AlternativeMeDataId(string symbol)
+        {
+            if (String.IsNullOrEmpty(symbol))
+            {
+                return "";
+            }
+
+            string value = symbol.Trim().ToUpperInvariant();
+            if (value == "BTC")
+            {
+                return "1";
+            }
+
+            if (value == "ETH")
+            {
+                return "1027";
+            }
+
+            if (value == "SOL")
+            {
+                return "11733";
+            }
+
+            if (value == "XRP")
+            {
+                return "52";
+            }
+
+            if (value == "DOGE")
+            {
+                return "74";
+            }
+
+            if (value == "ADA")
+            {
+                return "2010";
+            }
+
+            if (value == "BNB")
+            {
+                return "1839";
+            }
+
+            if (value == "TRX")
+            {
+                return "1958";
+            }
+
+            if (value == "DOT")
+            {
+                return "11517";
+            }
+
+            return "";
+        }
+
+        public string[] GetSymbols()
+        {
+            return Symbols.ToArray();
+        }
+
+        public int GetPollIntervalSeconds()
+        {
+            int seconds = RefreshSeconds;
+            if (Items != null)
+            {
+                foreach (ApiItemConfig item in Items)
+                {
+                    if (item != null && item.Enabled && item.IntervalSeconds > 0 && item.IntervalSeconds < seconds)
+                    {
+                        seconds = item.IntervalSeconds;
+                    }
+                }
+            }
+
+            return Clamp(seconds, 30, 86400);
+        }
+
+        public bool HasEnabledItems()
+        {
+            if (Items == null)
+            {
+                return false;
+            }
+
+            foreach (ApiItemConfig item in Items)
+            {
+                if (item != null && item.Enabled)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public static ApiItemConfig CreateKnownCoinItem(string symbol, int intervalSeconds, int timeoutSeconds)
+        {
+            string normalized = String.IsNullOrEmpty(symbol) ? "BTC" : symbol.Trim().ToUpperInvariant();
+            string dataId = AlternativeMeDataId(normalized);
+            if (dataId.Length == 0)
+            {
+                dataId = "1";
+                normalized = "BTC";
+            }
+
+            return CreateAlternativeMeItem(normalized, dataId, "USD", "https://api.alternative.me/v2/ticker/?convert=USD&limit=10", intervalSeconds, timeoutSeconds);
+        }
+
+        private static List<ApiItemConfig> ReadItems(Dictionary<string, object> root, string key)
+        {
+            List<ApiItemConfig> items = new List<ApiItemConfig>();
+            object value;
+            if (!root.TryGetValue(key, out value) || value == null)
+            {
+                return items;
+            }
+
+            ArrayList array = value as ArrayList;
+            object[] objectArray = value as object[];
+            if (array != null)
+            {
+                foreach (object item in array)
+                {
+                    AddItem(items, item);
+                }
+            }
+            else if (objectArray != null)
+            {
+                foreach (object item in objectArray)
+                {
+                    AddItem(items, item);
+                }
+            }
+
+            return items;
+        }
+
+        private static void AddItem(List<ApiItemConfig> items, object value)
+        {
+            Dictionary<string, object> root = value as Dictionary<string, object>;
+            if (root == null)
+            {
+                return;
+            }
+
+            ApiItemConfig item = new ApiItemConfig();
+            item.Id = GetString(root, "id", item.Id);
+            item.Name = GetString(root, "name", item.Name);
+            item.Enabled = GetBool(root, "enabled", item.Enabled);
+            item.Url = GetString(root, "url", item.Url);
+            item.Method = NormalizeMethod(GetString(root, "method", item.Method));
+            item.Body = GetString(root, "body", item.Body);
+            item.Template = GetString(root, "template", item.Template);
+            item.Template = GetString(root, "jsonPath", item.Template);
+            item.IntervalSeconds = Clamp(GetInt(root, "intervalSeconds", item.IntervalSeconds), 30, 86400);
+            item.TimeoutSeconds = Clamp(GetInt(root, "timeoutSeconds", item.TimeoutSeconds), 3, 120);
+            item.Headers = ReadHeaders(root);
+
+            if (item.Url.Length > 0)
+            {
+                items.Add(item);
+            }
+        }
+
+        private static Dictionary<string, string> ReadHeaders(Dictionary<string, object> root)
+        {
+            Dictionary<string, string> headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            object value;
+            if (!root.TryGetValue("headers", out value) || value == null)
+            {
+                return headers;
+            }
+
+            Dictionary<string, object> headerRoot = value as Dictionary<string, object>;
+            if (headerRoot == null)
+            {
+                return headers;
+            }
+
+            foreach (KeyValuePair<string, object> pair in headerRoot)
+            {
+                if (!String.IsNullOrEmpty(pair.Key) && pair.Value != null)
+                {
+                    headers[pair.Key] = Convert.ToString(pair.Value);
+                }
+            }
+
+            return headers;
+        }
+
+        private static void AddSymbol(List<string> symbols, object item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            string symbol = Convert.ToString(item).Trim().ToUpperInvariant();
+            if (symbol.Length > 0 && !symbols.Contains(symbol))
+            {
+                symbols.Add(symbol);
+            }
+        }
+
+        private static string GetString(Dictionary<string, object> root, string key, string fallback)
+        {
+            object value;
+            if (!root.TryGetValue(key, out value) || value == null)
+            {
+                return fallback;
+            }
+
+            string text = Convert.ToString(value);
+            return text.Length == 0 ? fallback : text;
+        }
+
+        private static int GetInt(Dictionary<string, object> root, string key, int fallback)
+        {
+            object value;
+            if (!root.TryGetValue(key, out value) || value == null)
+            {
+                return fallback;
+            }
+
+            try
+            {
+                return Convert.ToInt32(value);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        private static bool GetBool(Dictionary<string, object> root, string key, bool fallback)
+        {
+            object value;
+            if (!root.TryGetValue(key, out value) || value == null)
+            {
+                return fallback;
+            }
+
+            try
+            {
+                return Convert.ToBoolean(value);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        private static string NormalizeMethod(string method)
+        {
+            if (String.IsNullOrEmpty(method))
+            {
+                return "GET";
+            }
+
+            method = method.Trim().ToUpperInvariant();
+            if (method.Length == 0)
+            {
+                return "GET";
+            }
+
+            return method;
+        }
+
+        private static int Clamp(int value, int min, int max)
+        {
+            if (value < min)
+            {
+                return min;
+            }
+
+            if (value > max)
+            {
+                return max;
+            }
+
+            return value;
+        }
+
+        private static string NormalizeAnchor(string anchor)
+        {
+            if (String.IsNullOrEmpty(anchor))
+            {
+                return "left";
+            }
+
+            string value = anchor.Trim().ToLowerInvariant();
+            if (value == "right" || value == "left")
+            {
+                return value;
+            }
+
+            return "left";
+        }
+
+        private static string PrettyJson(string compact)
+        {
+            int indent = 0;
+            bool quoted = false;
+            bool escaped = false;
+            System.Text.StringBuilder builder = new System.Text.StringBuilder();
+
+            for (int i = 0; i < compact.Length; i++)
+            {
+                char ch = compact[i];
+                if (escaped)
+                {
+                    builder.Append(ch);
+                    escaped = false;
+                    continue;
+                }
+
+                if (ch == '\\')
+                {
+                    builder.Append(ch);
+                    escaped = true;
+                    continue;
+                }
+
+                if (ch == '"')
+                {
+                    quoted = !quoted;
+                    builder.Append(ch);
+                    continue;
+                }
+
+                if (!quoted && (ch == '{' || ch == '['))
+                {
+                    builder.Append(ch);
+                    builder.AppendLine();
+                    indent++;
+                    AppendIndent(builder, indent);
+                    continue;
+                }
+
+                if (!quoted && (ch == '}' || ch == ']'))
+                {
+                    builder.AppendLine();
+                    indent--;
+                    AppendIndent(builder, indent);
+                    builder.Append(ch);
+                    continue;
+                }
+
+                if (!quoted && ch == ',')
+                {
+                    builder.Append(ch);
+                    builder.AppendLine();
+                    AppendIndent(builder, indent);
+                    continue;
+                }
+
+                if (!quoted && ch == ':')
+                {
+                    builder.Append(": ");
+                    continue;
+                }
+
+                builder.Append(ch);
+            }
+
+            return builder.ToString();
+        }
+
+        private static void AppendIndent(System.Text.StringBuilder builder, int indent)
+        {
+            for (int i = 0; i < indent; i++)
+            {
+                builder.Append("  ");
+            }
+        }
+    }
+
+    internal sealed class ApiItemConfig
+    {
+        public string Id;
+        public string Name;
+        public bool Enabled;
+        public string Url;
+        public string Method;
+        public Dictionary<string, string> Headers;
+        public string Body;
+        public string Template;
+        public int IntervalSeconds;
+        public int TimeoutSeconds;
+
+        public ApiItemConfig()
+        {
+            Id = "";
+            Name = "";
+            Enabled = true;
+            Url = "";
+            Method = "GET";
+            Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            Body = "";
+            Template = "";
+            IntervalSeconds = 300;
+            TimeoutSeconds = 10;
+        }
+
+        public string EffectiveId(int index)
+        {
+            if (!String.IsNullOrEmpty(Id))
+            {
+                return Id;
+            }
+
+            if (!String.IsNullOrEmpty(Name))
+            {
+                return Name;
+            }
+
+            return "item-" + index.ToString();
+        }
+
+        public string DisplayName(int index)
+        {
+            if (!String.IsNullOrEmpty(Name))
+            {
+                return Name;
+            }
+
+            if (!String.IsNullOrEmpty(Id))
+            {
+                return Id;
+            }
+
+            return "Item " + (index + 1).ToString();
+        }
+
+        public Dictionary<string, object> ToDictionary()
+        {
+            Dictionary<string, object> root = new Dictionary<string, object>();
+            root["id"] = Id;
+            root["name"] = Name;
+            root["enabled"] = Enabled;
+            root["url"] = Url;
+            root["method"] = Method;
+            if (Headers != null && Headers.Count > 0)
+            {
+                Dictionary<string, object> headers = new Dictionary<string, object>();
+                foreach (KeyValuePair<string, string> pair in Headers)
+                {
+                    headers[pair.Key] = pair.Value;
+                }
+
+                root["headers"] = headers;
+            }
+            root["body"] = Body;
+            root["template"] = Template;
+            root["intervalSeconds"] = IntervalSeconds;
+            root["timeoutSeconds"] = TimeoutSeconds;
+            return root;
+        }
+    }
+}

@@ -1,0 +1,36 @@
+{
+  "language": "zh-CN",
+  "refreshSeconds": 300,
+  "requestTimeoutSeconds": 10,
+  "displayTemplate": "{items}",
+  "itemSeparator": "   ",
+  "items": [
+    {
+      "id": "btc",
+      "name": "BTC",
+      "enabled": true,
+      "url": "https://api.alternative.me/v2/ticker/?convert=USD&limit=10",
+      "method": "GET",
+      "template": "BTC ${$.data.1.quotes.USD.price:0.00}",
+      "intervalSeconds": 300,
+      "timeoutSeconds": 10
+    },
+    {
+      "id": "eth",
+      "name": "ETH",
+      "enabled": true,
+      "url": "https://api.alternative.me/v2/ticker/?convert=USD&limit=10",
+      "method": "GET",
+      "template": "ETH ${$.data.1027.quotes.USD.price:0.00}",
+      "intervalSeconds": 300,
+      "timeoutSeconds": 10
+    }
+  ],
+  "showTaskbarWindow": true,
+  "taskbarAnchor": "left",
+  "taskbarOffsetX": 280,
+  "taskbarOffsetY": 0,
+  "taskbarFixedWidth": 0,
+  "taskbarMinWidth": 190,
+  "taskbarMaxWidth": 520
+}
