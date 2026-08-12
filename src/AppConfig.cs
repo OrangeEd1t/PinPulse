@@ -15,6 +15,7 @@ namespace CryptoMonitor
         public int RequestTimeoutSeconds;
         public string DisplayTemplate;
         public string ItemSeparator;
+        public bool StartWithWindows;
         public bool ShowTaskbarWindow;
         public string TaskbarAnchor;
         public int TaskbarOffsetX;
@@ -22,6 +23,13 @@ namespace CryptoMonitor
         public int TaskbarFixedWidth;
         public int TaskbarMinWidth;
         public int TaskbarMaxWidth;
+        public string TaskbarFontFamily;
+        public int TaskbarFontSize;
+        public bool TaskbarFontBold;
+        public string WindowBackgroundColor;
+        public bool WindowBackgroundTransparent;
+        public int WindowLeft;
+        public int WindowTop;
         public List<string> Symbols;
         public List<ApiItemConfig> Items;
 
@@ -36,6 +44,7 @@ namespace CryptoMonitor
             RequestTimeoutSeconds = 10;
             DisplayTemplate = "{items}";
             ItemSeparator = "   ";
+            StartWithWindows = false;
             ShowTaskbarWindow = true;
             TaskbarAnchor = "left";
             TaskbarOffsetX = 280;
@@ -43,6 +52,13 @@ namespace CryptoMonitor
             TaskbarFixedWidth = 0;
             TaskbarMinWidth = 190;
             TaskbarMaxWidth = 520;
+            TaskbarFontFamily = "Microsoft YaHei UI";
+            TaskbarFontSize = 10;
+            TaskbarFontBold = false;
+            WindowBackgroundColor = "#FFFFFF";
+            WindowBackgroundTransparent = true;
+            WindowLeft = Int32.MinValue;
+            WindowTop = Int32.MinValue;
             Symbols = new List<string>();
             Symbols.Add("BTC");
             Symbols.Add("ETH");
@@ -76,13 +92,21 @@ namespace CryptoMonitor
                 config.RequestTimeoutSeconds = Clamp(GetInt(root, "requestTimeoutSeconds", config.RequestTimeoutSeconds), 3, 120);
                 config.DisplayTemplate = GetString(root, "displayTemplate", config.DisplayTemplate);
                 config.ItemSeparator = GetString(root, "itemSeparator", config.ItemSeparator);
+                config.StartWithWindows = GetBool(root, "startWithWindows", config.StartWithWindows);
                 config.ShowTaskbarWindow = GetBool(root, "showTaskbarWindow", config.ShowTaskbarWindow);
                 config.TaskbarAnchor = NormalizeAnchor(GetString(root, "taskbarAnchor", config.TaskbarAnchor));
                 config.TaskbarOffsetX = Clamp(GetInt(root, "taskbarOffsetX", config.TaskbarOffsetX), -4000, 4000);
                 config.TaskbarOffsetY = Clamp(GetInt(root, "taskbarOffsetY", config.TaskbarOffsetY), -4000, 4000);
-                config.TaskbarFixedWidth = Clamp(GetInt(root, "taskbarFixedWidth", config.TaskbarFixedWidth), 0, 4000);
-                config.TaskbarMinWidth = Clamp(GetInt(root, "taskbarMinWidth", config.TaskbarMinWidth), 80, 4000);
-                config.TaskbarMaxWidth = Clamp(GetInt(root, "taskbarMaxWidth", config.TaskbarMaxWidth), 80, 4000);
+                config.TaskbarFixedWidth = Clamp(GetInt(root, "windowFixedWidth", GetInt(root, "taskbarFixedWidth", config.TaskbarFixedWidth)), 0, 4000);
+                config.TaskbarMinWidth = Clamp(GetInt(root, "windowMinWidth", GetInt(root, "taskbarMinWidth", config.TaskbarMinWidth)), 80, 4000);
+                config.TaskbarMaxWidth = Clamp(GetInt(root, "windowMaxWidth", GetInt(root, "taskbarMaxWidth", config.TaskbarMaxWidth)), 80, 4000);
+                config.TaskbarFontFamily = GetString(root, "windowFontFamily", GetString(root, "taskbarFontFamily", config.TaskbarFontFamily));
+                config.TaskbarFontSize = Clamp(GetInt(root, "windowFontSize", GetInt(root, "taskbarFontSize", config.TaskbarFontSize)), 6, 36);
+                config.TaskbarFontBold = GetBool(root, "windowFontBold", GetBool(root, "taskbarFontBold", config.TaskbarFontBold));
+                config.WindowBackgroundColor = NormalizeColorHex(GetString(root, "windowBackgroundColor", GetString(root, "taskbarBackgroundColor", config.WindowBackgroundColor)), config.WindowBackgroundColor);
+                config.WindowBackgroundTransparent = GetBool(root, "windowBackgroundTransparent", GetBool(root, "taskbarBackgroundTransparent", config.WindowBackgroundTransparent));
+                config.WindowLeft = GetOptionalInt(root, "windowLeft", config.WindowLeft, -32000, 32000);
+                config.WindowTop = GetOptionalInt(root, "windowTop", config.WindowTop, -32000, 32000);
                 if (config.TaskbarMaxWidth < config.TaskbarMinWidth)
                 {
                     config.TaskbarMaxWidth = config.TaskbarMinWidth;
@@ -147,13 +171,21 @@ namespace CryptoMonitor
             root["requestTimeoutSeconds"] = RequestTimeoutSeconds;
             root["displayTemplate"] = String.IsNullOrEmpty(DisplayTemplate) ? "{items}" : DisplayTemplate;
             root["itemSeparator"] = ItemSeparator;
-            root["showTaskbarWindow"] = ShowTaskbarWindow;
-            root["taskbarAnchor"] = NormalizeAnchor(TaskbarAnchor);
-            root["taskbarOffsetX"] = TaskbarOffsetX;
-            root["taskbarOffsetY"] = TaskbarOffsetY;
-            root["taskbarFixedWidth"] = Clamp(TaskbarFixedWidth, 0, 4000);
-            root["taskbarMinWidth"] = Clamp(TaskbarMinWidth, 80, 4000);
-            root["taskbarMaxWidth"] = Clamp(Math.Max(TaskbarMaxWidth, TaskbarMinWidth), 80, 4000);
+            root["startWithWindows"] = StartWithWindows;
+            root["windowFixedWidth"] = Clamp(TaskbarFixedWidth, 0, 4000);
+            root["windowMinWidth"] = Clamp(TaskbarMinWidth, 80, 4000);
+            root["windowMaxWidth"] = Clamp(Math.Max(TaskbarMaxWidth, TaskbarMinWidth), 80, 4000);
+            root["windowFontFamily"] = String.IsNullOrWhiteSpace(TaskbarFontFamily) ? "Microsoft YaHei UI" : TaskbarFontFamily;
+            root["windowFontSize"] = Clamp(TaskbarFontSize, 6, 36);
+            root["windowFontBold"] = TaskbarFontBold;
+            root["windowBackgroundColor"] = NormalizeColorHex(WindowBackgroundColor, "#FFFFFF");
+            root["windowBackgroundTransparent"] = WindowBackgroundTransparent;
+            if (HasSavedWindowPosition())
+            {
+                root["windowLeft"] = Clamp(WindowLeft, -32000, 32000);
+                root["windowTop"] = Clamp(WindowTop, -32000, 32000);
+            }
+
             if (Items != null && Items.Count > 0)
             {
                 ArrayList items = new ArrayList();
@@ -359,6 +391,11 @@ namespace CryptoMonitor
             return Clamp(seconds, 30, 86400);
         }
 
+        public bool HasSavedWindowPosition()
+        {
+            return WindowLeft != Int32.MinValue && WindowTop != Int32.MinValue;
+        }
+
         public bool HasEnabledItems()
         {
             if (Items == null)
@@ -516,6 +553,24 @@ namespace CryptoMonitor
             }
         }
 
+        private static int GetOptionalInt(Dictionary<string, object> root, string key, int fallback, int min, int max)
+        {
+            object value;
+            if (!root.TryGetValue(key, out value) || value == null)
+            {
+                return fallback;
+            }
+
+            try
+            {
+                return Clamp(Convert.ToInt32(value), min, max);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
         private static bool GetBool(Dictionary<string, object> root, string key, bool fallback)
         {
             object value;
@@ -532,6 +587,39 @@ namespace CryptoMonitor
             {
                 return fallback;
             }
+        }
+
+        public static string NormalizeColorHex(string value, string fallback)
+        {
+            if (String.IsNullOrWhiteSpace(value))
+            {
+                return fallback;
+            }
+
+            string text = value.Trim();
+            if (text.Length == 6)
+            {
+                text = "#" + text;
+            }
+
+            if (text.Length != 7 || text[0] != '#')
+            {
+                return fallback;
+            }
+
+            for (int i = 1; i < text.Length; i++)
+            {
+                char ch = text[i];
+                bool isHex = (ch >= '0' && ch <= '9') ||
+                    (ch >= 'a' && ch <= 'f') ||
+                    (ch >= 'A' && ch <= 'F');
+                if (!isHex)
+                {
+                    return fallback;
+                }
+            }
+
+            return text.ToUpperInvariant();
         }
 
         private static string NormalizeMethod(string method)

@@ -1,14 +1,14 @@
 # CryptoMonitor
 
-A small Windows taskbar-embedded API data monitor.
+A small Windows floating API data monitor.
 
 ## Features
 
 - Fetches and displays JSON API data with configurable items.
-- Embeds the price window inside the Windows taskbar window.
-- Provides refresh, settings, config folder, and exit commands from the taskbar text right-click menu.
+- Shows a transparent always-on-top price window that can be dragged anywhere on screen.
+- Provides refresh, settings, config folder, and exit commands from the price text right-click menu.
 - Supports Chinese and English UI text.
-- Provides a friendly settings window for common display, taskbar, and monitor item changes.
+- Provides a friendly settings window for common display, window, and monitor item changes.
 - Keeps `config.json` as an advanced editable configuration file.
 
 ## Build
@@ -33,15 +33,15 @@ CryptoMonitor.exe
 
 On first run, the app creates `config.json` next to the executable.
 
-Right-click the price text in the taskbar to refresh, open Settings, open the config folder, or exit.
+Right-click the price text to refresh, open Settings, open the config folder, or exit.
 
 In Settings:
 
-- `General`: language, refresh/timeout defaults, and overall display text.
-- `Taskbar`: taskbar alignment, offset, and automatic/fixed width.
-- `Monitor Items`: add common coins from the drop-down, enable/disable items, edit display text, copy/delete/reorder items, or edit advanced API fields.
+- `General`: language, startup option, refresh/timeout defaults, and overall display text.
+- `Window`: automatic/fixed width and text appearance.
+- `Monitor Items`: add a blank item or a request template, enable/disable items, edit URL/method/headers/body, set display text, copy/delete/reorder items, and test a single item before saving.
 
-Most users only need the `Monitor Items` tab: choose a coin such as BTC or ETH, click Add, then Save.
+Most users only need the `Monitor Items` tab: choose `GET JSON` or `Blank`, fill in the request URL and display template, click `Test`, then Save.
 
 ## Configuration
 
@@ -54,6 +54,7 @@ Example:
   "requestTimeoutSeconds": 10,
   "displayTemplate": "{items}",
   "itemSeparator": "   ",
+  "startWithWindows": false,
   "items": [
     {
       "id": "btc",
@@ -76,17 +77,20 @@ Example:
       "timeoutSeconds": 10
     }
   ],
-  "showTaskbarWindow": true,
-  "taskbarAnchor": "left",
-  "taskbarOffsetX": 280,
-  "taskbarOffsetY": 0,
-  "taskbarFixedWidth": 0,
-  "taskbarMinWidth": 190,
-  "taskbarMaxWidth": 520
+  "windowFixedWidth": 0,
+  "windowMinWidth": 190,
+  "windowMaxWidth": 520
 }
 ```
 
-The default BTC/ETH display uses the same `items` structure as every other API. You can manage these entries from Settings, so direct JSON editing is only needed for advanced or bulk changes. This follows the same idea as TrafficMonitor plugins such as TMFetchPlugin: each item owns its URL, request options, refresh interval, and display template.
+The default BTC/ETH display is only an example. Every monitor entry uses the same generic `items` structure, so the Settings window can be used for crypto prices, market indicators, service health, build status, weather, or any JSON API that can be rendered with a template. This follows the same idea as TrafficMonitor plugins such as TMFetchPlugin: each item owns its URL, request options, refresh interval, and display template.
+
+The Settings window includes these item templates:
+
+- `GET JSON`: starts a generic GET request with an `Accept: application/json` header.
+- `POST JSON`: starts a JSON POST request with an editable request body.
+- `Fear & Greed` and `BTC price`: ready-to-edit examples, not special cases.
+- `Blank`: creates a minimal custom item.
 
 Another item example:
 
@@ -132,12 +136,13 @@ Template syntax:
 
 Overall display format:
 
-- `displayTemplate` controls the final taskbar text after all enabled items are rendered.
+- `displayTemplate` controls the final window text after all enabled items are rendered.
 - `{items}` inserts the joined item text.
 - `{count}` inserts the rendered item count.
 - `{date}` inserts the current date as `yyyy-MM-dd`.
 - `{time}` inserts the current time as `HH:mm:ss`.
 - `itemSeparator` controls the separator used inside `{items}`.
+- `startWithWindows` is `false` by default. Set it from Settings to launch CryptoMonitor when Windows starts.
 
 Examples:
 
@@ -149,14 +154,13 @@ Examples:
 "displayTemplate": "[{time}] {items}"
 ```
 
-Taskbar width:
+Window width and appearance:
 
-- `taskbarFixedWidth`: fixed taskbar window width in pixels. Use `0` for automatic width.
-- `taskbarMinWidth`: minimum automatic width.
-- `taskbarMaxWidth`: maximum automatic width.
+- `windowFixedWidth`: fixed floating window width in pixels. Use `0` for automatic width.
+- `windowMinWidth`: minimum automatic width.
+- `windowMaxWidth`: maximum automatic width.
+- `windowFontFamily`, `windowFontSize`, `windowFontBold`: window text font, size, and bold style.
 
 `language` supports `zh-CN` and `en-US`. If omitted, the app uses the system UI language when it is Chinese, otherwise English.
 
-`showTaskbarWindow` is kept for compatibility with earlier configs. The current app always embeds the window in the taskbar so it remains reachable without a tray icon.
-
-`taskbarAnchor` can be `left` or `right`. If it overlaps TrafficMonitor or taskbar icons, adjust `taskbarOffsetX` and restart the app.
+Older `taskbar...` width and font keys are still accepted for compatibility, but the app now saves the newer `window...` keys. The old taskbar anchor, offset, and `showTaskbarWindow` options are ignored by the floating-window mode.

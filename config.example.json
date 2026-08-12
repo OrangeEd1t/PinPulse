@@ -4,6 +4,7 @@
   "requestTimeoutSeconds": 10,
   "displayTemplate": "{items}",
   "itemSeparator": "   ",
+  "startWithWindows": false,
   "items": [
     {
       "id": "btc",
@@ -26,11 +27,12 @@
       "timeoutSeconds": 10
     }
   ],
-  "showTaskbarWindow": true,
-  "taskbarAnchor": "left",
-  "taskbarOffsetX": 280,
-  "taskbarOffsetY": 0,
-  "taskbarFixedWidth": 0,
-  "taskbarMinWidth": 190,
-  "taskbarMaxWidth": 520
+  "windowFixedWidth": 0,
+  "windowMinWidth": 190,
+  "windowMaxWidth": 520,
+  "windowFontFamily": "Microsoft YaHei UI",
+  "windowFontSize": 10,
+  "windowFontBold": false,
+  "windowBackgroundColor": "#FFFFFF",
+  "windowBackgroundTransparent": true
 }

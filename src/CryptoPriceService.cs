@@ -20,7 +20,7 @@ namespace CryptoMonitor
             });
         }
 
-        private static string Download(ApiItemConfig item, int fallbackTimeoutSeconds)
+        internal static string Download(ApiItemConfig item, int fallbackTimeoutSeconds)
         {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             int timeoutSeconds = item.TimeoutSeconds > 0 ? item.TimeoutSeconds : fallbackTimeoutSeconds;

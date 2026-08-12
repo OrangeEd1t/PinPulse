@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Text;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace CryptoMonitor
@@ -10,14 +13,18 @@ namespace CryptoMonitor
         private readonly ComboBox languageComboBox;
         private readonly NumericUpDown refreshNumeric;
         private readonly NumericUpDown timeoutNumeric;
+        private readonly CheckBox startWithWindowsCheckBox;
         private readonly TextBox displayTemplateTextBox;
         private readonly TextBox itemSeparatorTextBox;
-        private readonly ComboBox taskbarAnchorComboBox;
-        private readonly NumericUpDown taskbarOffsetXNumeric;
-        private readonly NumericUpDown taskbarOffsetYNumeric;
         private readonly NumericUpDown taskbarFixedWidthNumeric;
         private readonly NumericUpDown taskbarMinWidthNumeric;
         private readonly NumericUpDown taskbarMaxWidthNumeric;
+        private readonly ComboBox taskbarFontFamilyComboBox;
+        private readonly NumericUpDown taskbarFontSizeNumeric;
+        private readonly CheckBox taskbarFontBoldCheckBox;
+        private readonly TextBox windowBackgroundColorTextBox;
+        private readonly Panel windowBackgroundPreviewPanel;
+        private readonly CheckBox windowBackgroundTransparentCheckBox;
 
         private readonly List<ApiItemConfig> editingItems;
         private readonly ListBox itemListBox;
@@ -32,6 +39,8 @@ namespace CryptoMonitor
         private readonly NumericUpDown itemTimeoutNumeric;
         private readonly TextBox itemHeadersTextBox;
         private readonly TextBox itemBodyTextBox;
+        private readonly Button testItemButton;
+        private readonly TextBox itemPreviewTextBox;
         private readonly Panel itemEditorPanel;
 
         private int currentItemIndex = -1;
@@ -47,32 +56,43 @@ namespace CryptoMonitor
             Text = Localization.Text(config, "SettingsTitle");
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
+            ShowIcon = false;
             MaximizeBox = false;
             MinimizeBox = false;
-            ClientSize = new Size(780, 570);
+            AutoScaleMode = AutoScaleMode.None;
+            ClientSize = new Size(920, 650);
             Font = new Font("Segoe UI", 9F, FontStyle.Regular);
 
             TabControl tabs = new TabControl();
             tabs.Left = 12;
             tabs.Top = 12;
-            tabs.Width = 756;
-            tabs.Height = 500;
+            tabs.Width = 896;
+            tabs.Height = 560;
             Controls.Add(tabs);
 
             TabPage generalTab = new TabPage(Localization.Text(config, "GeneralSettings"));
-            TabPage taskbarTab = new TabPage(Localization.Text(config, "TaskbarSettings"));
+            TabPage windowTab = new TabPage(Localization.Text(config, "TaskbarSettings"));
             TabPage itemsTab = new TabPage(Localization.Text(config, "MonitorItems"));
             tabs.TabPages.Add(generalTab);
-            tabs.TabPages.Add(taskbarTab);
+            tabs.TabPages.Add(windowTab);
             tabs.TabPages.Add(itemsTab);
 
             GroupBox basicGroup = AddGroup(generalTab, Localization.Text(config, "BasicSettings"), 14, 14, 710, 150);
             languageComboBox = AddLanguageComboBox(basicGroup, 180, 28, config.Language);
             AddLabel(basicGroup, Localization.Text(config, "Language"), 14, 31, 150);
             refreshNumeric = AddNumeric(basicGroup, 180, 67, 30, 86400, config.RefreshSeconds);
+            AddUnitLabel(basicGroup, Localization.Text(config, "UnitSeconds"), refreshNumeric);
             AddLabel(basicGroup, Localization.Text(config, "RefreshSeconds"), 14, 70, 150);
             timeoutNumeric = AddNumeric(basicGroup, 180, 106, 3, 120, config.RequestTimeoutSeconds);
+            AddUnitLabel(basicGroup, Localization.Text(config, "UnitSeconds"), timeoutNumeric);
             AddLabel(basicGroup, Localization.Text(config, "TimeoutSeconds"), 14, 109, 150);
+            startWithWindowsCheckBox = new CheckBox();
+            startWithWindowsCheckBox.Left = 380;
+            startWithWindowsCheckBox.Top = 31;
+            startWithWindowsCheckBox.Width = 260;
+            startWithWindowsCheckBox.Text = Localization.Text(config, "StartWithWindows");
+            startWithWindowsCheckBox.Checked = config.StartWithWindows;
+            basicGroup.Controls.Add(startWithWindowsCheckBox);
 
             GroupBox displayGroup = AddGroup(generalTab, Localization.Text(config, "DisplaySettings"), 14, 178, 710, 178);
             displayTemplateTextBox = AddTextBox(displayGroup, 180, 30, 460, config.DisplayTemplate);
@@ -82,52 +102,81 @@ namespace CryptoMonitor
             AddLabel(displayGroup, Localization.Text(config, "ItemSeparator"), 14, 106, 150);
             AddHint(displayGroup, Localization.Text(config, "ItemSeparatorHint"), 180, 131, 480);
 
-            GroupBox positionGroup = AddGroup(taskbarTab, Localization.Text(config, "TaskbarPosition"), 14, 14, 710, 180);
-            taskbarAnchorComboBox = AddAnchorComboBox(positionGroup, 180, 30, config.TaskbarAnchor);
-            AddLabel(positionGroup, Localization.Text(config, "TaskbarAnchor"), 14, 33, 150);
-            taskbarOffsetXNumeric = AddNumeric(positionGroup, 180, 72, -4000, 4000, config.TaskbarOffsetX);
-            AddLabel(positionGroup, Localization.Text(config, "TaskbarOffsetX"), 14, 75, 150);
-            taskbarOffsetYNumeric = AddNumeric(positionGroup, 180, 114, -4000, 4000, config.TaskbarOffsetY);
-            AddLabel(positionGroup, Localization.Text(config, "TaskbarOffsetY"), 14, 117, 150);
-            AddHint(positionGroup, Localization.Text(config, "TaskbarOffsetHint"), 180, 146, 480);
-
-            GroupBox widthGroup = AddGroup(taskbarTab, Localization.Text(config, "TaskbarWidth"), 14, 214, 710, 180);
+            GroupBox widthGroup = AddGroup(windowTab, Localization.Text(config, "TaskbarWidth"), 14, 14, 710, 180);
             taskbarFixedWidthNumeric = AddNumeric(widthGroup, 180, 30, 0, 4000, config.TaskbarFixedWidth);
+            AddUnitLabel(widthGroup, Localization.Text(config, "UnitPixels"), taskbarFixedWidthNumeric);
             AddLabel(widthGroup, Localization.Text(config, "TaskbarFixedWidth"), 14, 33, 150);
             taskbarMinWidthNumeric = AddNumeric(widthGroup, 180, 72, 80, 4000, config.TaskbarMinWidth);
+            AddUnitLabel(widthGroup, Localization.Text(config, "UnitPixels"), taskbarMinWidthNumeric);
             AddLabel(widthGroup, Localization.Text(config, "TaskbarMinWidth"), 14, 75, 150);
             taskbarMaxWidthNumeric = AddNumeric(widthGroup, 180, 114, 80, 4000, Math.Max(config.TaskbarMaxWidth, config.TaskbarMinWidth));
+            AddUnitLabel(widthGroup, Localization.Text(config, "UnitPixels"), taskbarMaxWidthNumeric);
             AddLabel(widthGroup, Localization.Text(config, "TaskbarMaxWidth"), 14, 117, 150);
             AddHint(widthGroup, Localization.Text(config, "TaskbarWidthHint"), 180, 146, 480);
+
+            GroupBox appearanceGroup = AddGroup(windowTab, Localization.Text(config, "TaskbarAppearance"), 14, 214, 710, 116);
+            taskbarFontFamilyComboBox = AddFontFamilyComboBox(appearanceGroup, 180, 30, config.TaskbarFontFamily);
+            AddLabel(appearanceGroup, Localization.Text(config, "TaskbarFontFamily"), 14, 33, 150);
+            taskbarFontSizeNumeric = AddNumeric(appearanceGroup, 180, 72, 6, 36, config.TaskbarFontSize);
+            AddUnitLabel(appearanceGroup, Localization.Text(config, "UnitPoints"), taskbarFontSizeNumeric);
+            AddLabel(appearanceGroup, Localization.Text(config, "TaskbarFontSize"), 14, 75, 150);
+            taskbarFontBoldCheckBox = new CheckBox();
+            taskbarFontBoldCheckBox.Left = 380;
+            taskbarFontBoldCheckBox.Top = 74;
+            taskbarFontBoldCheckBox.Width = 120;
+            taskbarFontBoldCheckBox.Text = Localization.Text(config, "TaskbarFontBold");
+            taskbarFontBoldCheckBox.Checked = config.TaskbarFontBold;
+            appearanceGroup.Controls.Add(taskbarFontBoldCheckBox);
+
+            GroupBox backgroundGroup = AddGroup(windowTab, Localization.Text(config, "WindowBackground"), 14, 350, 710, 96);
+            windowBackgroundColorTextBox = AddTextBox(backgroundGroup, 180, 30, 110, AppConfig.NormalizeColorHex(config.WindowBackgroundColor, "#FFFFFF"));
+            windowBackgroundColorTextBox.TextChanged += WindowBackgroundColorTextBoxChanged;
+            AddLabel(backgroundGroup, Localization.Text(config, "WindowBackgroundColor"), 14, 33, 150);
+            windowBackgroundPreviewPanel = new Panel();
+            windowBackgroundPreviewPanel.Left = 300;
+            windowBackgroundPreviewPanel.Top = 30;
+            windowBackgroundPreviewPanel.Width = 28;
+            windowBackgroundPreviewPanel.Height = 22;
+            windowBackgroundPreviewPanel.BorderStyle = BorderStyle.FixedSingle;
+            backgroundGroup.Controls.Add(windowBackgroundPreviewPanel);
+            Button chooseBackgroundColorButton = AddButton(backgroundGroup, Localization.Text(config, "ChooseColor"), 338, 27, 72, ChooseBackgroundColorButtonClick);
+            windowBackgroundTransparentCheckBox = new CheckBox();
+            windowBackgroundTransparentCheckBox.Left = 180;
+            windowBackgroundTransparentCheckBox.Top = 64;
+            windowBackgroundTransparentCheckBox.Width = 220;
+            windowBackgroundTransparentCheckBox.Text = Localization.Text(config, "WindowBackgroundTransparent");
+            windowBackgroundTransparentCheckBox.Checked = config.WindowBackgroundTransparent;
+            backgroundGroup.Controls.Add(windowBackgroundTransparentCheckBox);
+            UpdateBackgroundPreview();
 
             itemListBox = new ListBox();
             itemListBox.Left = 14;
             itemListBox.Top = 58;
-            itemListBox.Width = 210;
-            itemListBox.Height = 300;
+            itemListBox.Width = 250;
+            itemListBox.Height = 360;
             itemListBox.SelectedIndexChanged += ItemListBoxSelectedIndexChanged;
             itemsTab.Controls.Add(itemListBox);
 
             presetComboBox = new ComboBox();
             presetComboBox.Left = 14;
             presetComboBox.Top = 18;
-            presetComboBox.Width = 124;
+            presetComboBox.Width = 156;
             presetComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             AddPresetItems();
             itemsTab.Controls.Add(presetComboBox);
 
-            Button addPresetButton = AddButton(itemsTab, Localization.Text(config, "AddPreset"), 144, 17, 80, AddPresetButtonClick);
-            Button addCustomButton = AddButton(itemsTab, Localization.Text(config, "AddCustom"), 14, 370, 100, AddCustomButtonClick);
-            Button duplicateButton = AddButton(itemsTab, Localization.Text(config, "Duplicate"), 124, 370, 100, DuplicateButtonClick);
-            Button deleteButton = AddButton(itemsTab, Localization.Text(config, "Delete"), 14, 408, 100, DeleteButtonClick);
-            Button upButton = AddButton(itemsTab, Localization.Text(config, "MoveUp"), 124, 408, 48, MoveUpButtonClick);
-            Button downButton = AddButton(itemsTab, Localization.Text(config, "MoveDown"), 176, 408, 48, MoveDownButtonClick);
+            Button addPresetButton = AddButton(itemsTab, Localization.Text(config, "AddPreset"), 178, 17, 86, AddPresetButtonClick);
+            Button addCustomButton = AddButton(itemsTab, Localization.Text(config, "AddCustom"), 14, 430, 118, AddCustomButtonClick);
+            Button duplicateButton = AddButton(itemsTab, Localization.Text(config, "Duplicate"), 146, 430, 118, DuplicateButtonClick);
+            Button deleteButton = AddButton(itemsTab, Localization.Text(config, "Delete"), 14, 468, 118, DeleteButtonClick);
+            Button upButton = AddButton(itemsTab, Localization.Text(config, "MoveUp"), 146, 468, 56, MoveUpButtonClick);
+            Button downButton = AddButton(itemsTab, Localization.Text(config, "MoveDown"), 208, 468, 56, MoveDownButtonClick);
 
             itemEditorPanel = new Panel();
-            itemEditorPanel.Left = 244;
+            itemEditorPanel.Left = 284;
             itemEditorPanel.Top = 18;
-            itemEditorPanel.Width = 480;
-            itemEditorPanel.Height = 430;
+            itemEditorPanel.Width = 580;
+            itemEditorPanel.Height = 500;
             itemEditorPanel.BorderStyle = BorderStyle.FixedSingle;
             itemsTab.Controls.Add(itemEditorPanel);
 
@@ -138,35 +187,41 @@ namespace CryptoMonitor
             itemEnabledCheckBox.Text = Localization.Text(config, "ItemEnabled");
             itemEditorPanel.Controls.Add(itemEnabledCheckBox);
 
-            itemNameTextBox = AddTextBox(itemEditorPanel, 130, 50, 290, "");
+            itemNameTextBox = AddTextBox(itemEditorPanel, 130, 50, 390, "");
             AddLabel(itemEditorPanel, Localization.Text(config, "ItemName"), 14, 53, 105);
-            itemTemplateTextBox = AddTextBox(itemEditorPanel, 130, 88, 290, "");
+            itemTemplateTextBox = AddTextBox(itemEditorPanel, 130, 88, 390, "");
             AddLabel(itemEditorPanel, Localization.Text(config, "ItemTemplate"), 14, 91, 105);
-            AddHint(itemEditorPanel, Localization.Text(config, "ItemTemplateHint"), 130, 116, 330);
-            itemUrlTextBox = AddTextBox(itemEditorPanel, 130, 150, 320, "");
+            AddHint(itemEditorPanel, Localization.Text(config, "ItemTemplateHint"), 130, 116, 410);
+            itemUrlTextBox = AddTextBox(itemEditorPanel, 130, 150, 410, "");
             AddLabel(itemEditorPanel, Localization.Text(config, "ItemUrl"), 14, 153, 105);
             itemIntervalNumeric = AddNumeric(itemEditorPanel, 130, 188, 30, 86400, config.RefreshSeconds);
+            AddUnitLabel(itemEditorPanel, Localization.Text(config, "UnitSeconds"), itemIntervalNumeric);
             AddLabel(itemEditorPanel, Localization.Text(config, "ItemInterval"), 14, 191, 105);
             itemTimeoutNumeric = AddNumeric(itemEditorPanel, 130, 226, 3, 120, config.RequestTimeoutSeconds);
+            AddUnitLabel(itemEditorPanel, Localization.Text(config, "UnitSeconds"), itemTimeoutNumeric);
             AddLabel(itemEditorPanel, Localization.Text(config, "ItemTimeout"), 14, 229, 105);
 
-            GroupBox advancedGroup = AddGroup(itemEditorPanel, Localization.Text(config, "AdvancedSettings"), 14, 270, 440, 146);
-            itemIdTextBox = AddTextBox(advancedGroup, 116, 26, 125, "");
+            GroupBox advancedGroup = AddGroup(itemEditorPanel, Localization.Text(config, "AdvancedSettings"), 14, 270, 526, 116);
+            itemIdTextBox = AddTextBox(advancedGroup, 116, 26, 150, "");
             AddLabel(advancedGroup, Localization.Text(config, "ItemId"), 12, 29, 90);
-            itemMethodComboBox = AddMethodComboBox(advancedGroup, 316, 24);
-            AddLabel(advancedGroup, Localization.Text(config, "ItemMethod"), 256, 29, 58);
-            itemHeadersTextBox = AddMultilineTextBox(advancedGroup, 116, 62, 125, 58, "");
+            itemMethodComboBox = AddMethodComboBox(advancedGroup, 376, 24);
+            AddLabel(advancedGroup, Localization.Text(config, "ItemMethod"), 306, 29, 62);
+            itemHeadersTextBox = AddMultilineTextBox(advancedGroup, 116, 62, 150, 40, "");
             AddLabel(advancedGroup, Localization.Text(config, "ItemHeaders"), 12, 65, 90);
-            itemBodyTextBox = AddMultilineTextBox(advancedGroup, 316, 62, 110, 58, "");
-            AddLabel(advancedGroup, Localization.Text(config, "ItemBody"), 256, 65, 58);
+            itemBodyTextBox = AddMultilineTextBox(advancedGroup, 376, 62, 136, 40, "");
+            AddLabel(advancedGroup, Localization.Text(config, "ItemBody"), 306, 65, 62);
+
+            testItemButton = AddButton(itemEditorPanel, Localization.Text(config, "TestItem"), 14, 404, 96, TestItemButtonClick);
+            itemPreviewTextBox = AddMultilineTextBox(itemEditorPanel, 130, 404, 410, 76, "");
+            itemPreviewTextBox.ReadOnly = true;
 
             ReloadItemList(editingItems.Count > 0 ? 0 : -1);
             SetEditorEnabled(editingItems.Count > 0);
 
             Button saveButton = new Button();
             saveButton.Text = Localization.Text(config, "Save");
-            saveButton.Left = 596;
-            saveButton.Top = 526;
+            saveButton.Left = 736;
+            saveButton.Top = 596;
             saveButton.Width = 80;
             saveButton.DialogResult = DialogResult.OK;
             saveButton.Click += SaveButtonClick;
@@ -174,8 +229,8 @@ namespace CryptoMonitor
 
             Button cancelButton = new Button();
             cancelButton.Text = Localization.Text(config, "Cancel");
-            cancelButton.Left = 684;
-            cancelButton.Top = 526;
+            cancelButton.Left = 824;
+            cancelButton.Top = 596;
             cancelButton.Width = 80;
             cancelButton.DialogResult = DialogResult.Cancel;
             Controls.Add(cancelButton);
@@ -189,6 +244,8 @@ namespace CryptoMonitor
             GC.KeepAlive(deleteButton);
             GC.KeepAlive(upButton);
             GC.KeepAlive(downButton);
+
+            ApplyDpiLayoutScale();
         }
 
         private void SaveButtonClick(object sender, EventArgs e)
@@ -212,19 +269,51 @@ namespace CryptoMonitor
                 return;
             }
 
+            try
+            {
+                StartupManager.SetEnabled(startWithWindowsCheckBox.Checked);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, Localization.Text(Config, "StartupUpdateFailed") + Environment.NewLine + ex.Message, "CryptoMonitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                DialogResult = DialogResult.None;
+                return;
+            }
+
             Config.Language = GetSelectedLanguage();
             Config.RefreshSeconds = Convert.ToInt32(refreshNumeric.Value);
             Config.RequestTimeoutSeconds = Convert.ToInt32(timeoutNumeric.Value);
             Config.DisplayTemplate = String.IsNullOrWhiteSpace(displayTemplateTextBox.Text) ? "{items}" : displayTemplateTextBox.Text;
             Config.ItemSeparator = itemSeparatorTextBox.Text;
-            Config.TaskbarAnchor = GetSelectedAnchor();
-            Config.TaskbarOffsetX = Convert.ToInt32(taskbarOffsetXNumeric.Value);
-            Config.TaskbarOffsetY = Convert.ToInt32(taskbarOffsetYNumeric.Value);
+            Config.StartWithWindows = startWithWindowsCheckBox.Checked;
             Config.TaskbarFixedWidth = Convert.ToInt32(taskbarFixedWidthNumeric.Value);
             Config.TaskbarMinWidth = Convert.ToInt32(taskbarMinWidthNumeric.Value);
             Config.TaskbarMaxWidth = Math.Max(Convert.ToInt32(taskbarMaxWidthNumeric.Value), Config.TaskbarMinWidth);
+            Config.TaskbarFontFamily = GetSelectedFontFamily();
+            Config.TaskbarFontSize = Convert.ToInt32(taskbarFontSizeNumeric.Value);
+            Config.TaskbarFontBold = taskbarFontBoldCheckBox.Checked;
+            Config.WindowBackgroundColor = GetSelectedBackgroundColor();
+            Config.WindowBackgroundTransparent = windowBackgroundTransparentCheckBox.Checked;
             Config.Items = CloneItems(editingItems);
-            Config.ShowTaskbarWindow = true;
+        }
+
+        private void ChooseBackgroundColorButtonClick(object sender, EventArgs e)
+        {
+            using (ColorDialog dialog = new ColorDialog())
+            {
+                Color color;
+                dialog.Color = TryParseColorHex(windowBackgroundColorTextBox.Text, out color) ? color : Color.White;
+                dialog.FullOpen = true;
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    windowBackgroundColorTextBox.Text = ColorToHex(dialog.Color);
+                }
+            }
+        }
+
+        private void WindowBackgroundColorTextBoxChanged(object sender, EventArgs e)
+        {
+            UpdateBackgroundPreview();
         }
 
         private void ItemListBoxSelectedIndexChanged(object sender, EventArgs e)
@@ -242,8 +331,11 @@ namespace CryptoMonitor
         private void AddPresetButtonClick(object sender, EventArgs e)
         {
             SaveCurrentEditor(false);
-            string symbol = Convert.ToString(presetComboBox.SelectedItem);
-            ApiItemConfig item = AppConfig.CreateKnownCoinItem(symbol, Convert.ToInt32(refreshNumeric.Value), Convert.ToInt32(timeoutNumeric.Value));
+            ApiItemPresetOption option = presetComboBox.SelectedItem as ApiItemPresetOption;
+            ApiItemConfig item = option == null
+                ? CreateBlankItem()
+                : option.Create(Convert.ToInt32(refreshNumeric.Value), Convert.ToInt32(timeoutNumeric.Value));
+            item.Id = UniqueItemId(item.Id);
             editingItems.Add(item);
             ReloadItemList(editingItems.Count - 1);
         }
@@ -251,13 +343,61 @@ namespace CryptoMonitor
         private void AddCustomButtonClick(object sender, EventArgs e)
         {
             SaveCurrentEditor(false);
-            ApiItemConfig item = new ApiItemConfig();
-            item.Id = "custom" + (editingItems.Count + 1).ToString();
-            item.Name = Localization.Text(Config, "NewItemName");
-            item.IntervalSeconds = Convert.ToInt32(refreshNumeric.Value);
-            item.TimeoutSeconds = Convert.ToInt32(timeoutNumeric.Value);
+            ApiItemConfig item = CreateBlankItem();
+            item.Id = UniqueItemId(item.Id);
             editingItems.Add(item);
             ReloadItemList(editingItems.Count - 1);
+        }
+
+        private void TestItemButtonClick(object sender, EventArgs e)
+        {
+            if (!SaveCurrentEditor(true) || currentItemIndex < 0 || currentItemIndex >= editingItems.Count)
+            {
+                return;
+            }
+
+            ApiItemConfig item = CloneItem(editingItems[currentItemIndex]);
+            itemPreviewTextBox.Text = Localization.Text(Config, "TestingItem");
+            testItemButton.Enabled = false;
+
+            Task<string> task = Task.Factory.StartNew<string>(delegate
+            {
+                string response = CryptoPriceService.Download(item, Convert.ToInt32(timeoutNumeric.Value));
+                string rendered = JsonTemplateRenderer.Render(response, item.Template);
+                return Localization.Text(Config, "PreviewRendered") + Environment.NewLine +
+                    rendered + Environment.NewLine + Environment.NewLine +
+                    Localization.Text(Config, "PreviewResponse") + Environment.NewLine +
+                    Shorten(response, 3000);
+            });
+
+            task.ContinueWith(delegate(Task<string> completed)
+            {
+                if (IsDisposed)
+                {
+                    return;
+                }
+
+                try
+                {
+                    BeginInvoke(new MethodInvoker(delegate
+                    {
+                        testItemButton.Enabled = currentItemIndex >= 0;
+                        if (completed.IsFaulted)
+                        {
+                            Exception ex = completed.Exception == null ? null : completed.Exception.GetBaseException();
+                            itemPreviewTextBox.Text = Localization.Text(Config, "TestItemFailed") + Environment.NewLine + (ex == null ? "" : ex.Message);
+                        }
+                        else
+                        {
+                            itemPreviewTextBox.Text = completed.Result;
+                        }
+                    }));
+                }
+                catch (InvalidOperationException)
+                {
+                    // The form may have closed while the request was still running.
+                }
+            });
         }
 
         private void DuplicateButtonClick(object sender, EventArgs e)
@@ -269,7 +409,7 @@ namespace CryptoMonitor
 
             SaveCurrentEditor(false);
             ApiItemConfig item = CloneItem(editingItems[currentItemIndex]);
-            item.Id = item.Id + "-copy";
+            item.Id = UniqueItemId(item.Id + "-copy");
             item.Name = item.Name + " Copy";
             editingItems.Insert(currentItemIndex + 1, item);
             ReloadItemList(currentItemIndex + 1);
@@ -396,6 +536,7 @@ namespace CryptoMonitor
             itemTimeoutNumeric.Value = Clamp(item.TimeoutSeconds, 3, 120);
             itemHeadersTextBox.Text = HeadersToText(item.Headers);
             itemBodyTextBox.Text = item.Body;
+            itemPreviewTextBox.Text = "";
             SelectMethod(item.Method);
             SetEditorEnabled(true);
             loadingItem = false;
@@ -407,7 +548,7 @@ namespace CryptoMonitor
             itemListBox.Items.Clear();
             for (int i = 0; i < editingItems.Count; i++)
             {
-                itemListBox.Items.Add(new ApiItemListOption(editingItems[i], i));
+                itemListBox.Items.Add(new ApiItemListOption(editingItems[i], i, Localization.Text(Config, "UnitSeconds")));
             }
 
             if (selectedIndex >= 0 && selectedIndex < itemListBox.Items.Count)
@@ -431,7 +572,20 @@ namespace CryptoMonitor
                 return;
             }
 
-            itemListBox.Items[currentItemIndex] = new ApiItemListOption(editingItems[currentItemIndex], currentItemIndex);
+            int selectedIndex = itemListBox.SelectedIndex;
+            loadingItem = true;
+            try
+            {
+                itemListBox.Items[currentItemIndex] = new ApiItemListOption(editingItems[currentItemIndex], currentItemIndex, Localization.Text(Config, "UnitSeconds"));
+                if (selectedIndex >= 0 && selectedIndex < itemListBox.Items.Count)
+                {
+                    itemListBox.SelectedIndex = selectedIndex;
+                }
+            }
+            finally
+            {
+                loadingItem = false;
+            }
         }
 
         private void SetEditorEnabled(bool enabled)
@@ -444,16 +598,98 @@ namespace CryptoMonitor
 
         private void AddPresetItems()
         {
-            string[] symbols = new string[] { "BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "BNB", "TRX", "DOT" };
-            for (int i = 0; i < symbols.Length; i++)
-            {
-                presetComboBox.Items.Add(symbols[i]);
-            }
+            presetComboBox.Items.Add(new ApiItemPresetOption(Localization.Text(Config, "PresetGetJson"), CreateGetJsonPreset));
+            presetComboBox.Items.Add(new ApiItemPresetOption(Localization.Text(Config, "PresetPostJson"), CreatePostJsonPreset));
+            presetComboBox.Items.Add(new ApiItemPresetOption(Localization.Text(Config, "PresetFearGreed"), CreateFearGreedPreset));
+            presetComboBox.Items.Add(new ApiItemPresetOption(Localization.Text(Config, "PresetCryptoPrice"), CreateCryptoPricePreset));
 
             if (presetComboBox.Items.Count > 0)
             {
                 presetComboBox.SelectedIndex = 0;
             }
+        }
+
+        private ApiItemConfig CreateBlankItem()
+        {
+            ApiItemConfig item = new ApiItemConfig();
+            item.Id = "item" + (editingItems.Count + 1).ToString();
+            item.Name = Localization.Text(Config, "NewItemName");
+            item.Method = "GET";
+            item.Template = "${$.value}";
+            item.IntervalSeconds = Convert.ToInt32(refreshNumeric.Value);
+            item.TimeoutSeconds = Convert.ToInt32(timeoutNumeric.Value);
+            item.Headers["Accept"] = "application/json";
+            return item;
+        }
+
+        private ApiItemConfig CreateGetJsonPreset(int intervalSeconds, int timeoutSeconds)
+        {
+            ApiItemConfig item = CreateBlankItem();
+            item.Id = "get-json";
+            item.Name = Localization.Text(Config, "PresetGetJson");
+            item.Template = "Value: ${$.value}";
+            item.IntervalSeconds = intervalSeconds;
+            item.TimeoutSeconds = timeoutSeconds;
+            return item;
+        }
+
+        private ApiItemConfig CreatePostJsonPreset(int intervalSeconds, int timeoutSeconds)
+        {
+            ApiItemConfig item = CreateBlankItem();
+            item.Id = "post-json";
+            item.Name = Localization.Text(Config, "PresetPostJson");
+            item.Method = "POST";
+            item.Headers["Content-Type"] = "application/json";
+            item.Body = "{\r\n  \"key\": \"value\"\r\n}";
+            item.Template = "Result: ${$.result}";
+            item.IntervalSeconds = intervalSeconds;
+            item.TimeoutSeconds = timeoutSeconds;
+            return item;
+        }
+
+        private ApiItemConfig CreateFearGreedPreset(int intervalSeconds, int timeoutSeconds)
+        {
+            ApiItemConfig item = CreateBlankItem();
+            item.Id = "fear-greed";
+            item.Name = "FGI";
+            item.Url = "https://api.alternative.me/fng/";
+            item.Template = "FGI: ${$.data[0].value} ${$.data[0].value_classification}";
+            item.IntervalSeconds = intervalSeconds;
+            item.TimeoutSeconds = timeoutSeconds;
+            return item;
+        }
+
+        private ApiItemConfig CreateCryptoPricePreset(int intervalSeconds, int timeoutSeconds)
+        {
+            return AppConfig.CreateKnownCoinItem("BTC", intervalSeconds, timeoutSeconds);
+        }
+
+        private string UniqueItemId(string preferredId)
+        {
+            string baseId = String.IsNullOrWhiteSpace(preferredId) ? "item" + (editingItems.Count + 1).ToString() : preferredId.Trim();
+            string candidate = baseId;
+            int suffix = 2;
+            while (ContainsItemId(candidate))
+            {
+                candidate = baseId + "-" + suffix.ToString();
+                suffix++;
+            }
+
+            return candidate;
+        }
+
+        private bool ContainsItemId(string id)
+        {
+            for (int i = 0; i < editingItems.Count; i++)
+            {
+                ApiItemConfig item = editingItems[i];
+                if (item != null && String.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private Label AddLabel(Control parent, string text, int left, int top, int width)
@@ -466,6 +702,13 @@ namespace CryptoMonitor
             label.Height = 22;
             label.TextAlign = ContentAlignment.MiddleLeft;
             parent.Controls.Add(label);
+            return label;
+        }
+
+        private Label AddUnitLabel(Control parent, string text, Control input)
+        {
+            Label label = AddLabel(parent, text, input.Right + 8, input.Top + 1, 58);
+            label.ForeColor = SystemColors.GrayText;
             return label;
         }
 
@@ -534,7 +777,7 @@ namespace CryptoMonitor
 
         private ComboBox AddLanguageComboBox(Control parent, int left, int top, string language)
         {
-            ComboBox comboBox = new ComboBox();
+            ComboBox comboBox = new WheelSafeComboBox();
             comboBox.Left = left;
             comboBox.Top = top;
             comboBox.Width = 140;
@@ -548,23 +791,9 @@ namespace CryptoMonitor
             return comboBox;
         }
 
-        private ComboBox AddAnchorComboBox(Control parent, int left, int top, string anchor)
-        {
-            ComboBox comboBox = new ComboBox();
-            comboBox.Left = left;
-            comboBox.Top = top;
-            comboBox.Width = 140;
-            comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-            comboBox.Items.Add(new CodeOption(Localization.Text(Config, "TaskbarAnchorLeft"), "left"));
-            comboBox.Items.Add(new CodeOption(Localization.Text(Config, "TaskbarAnchorRight"), "right"));
-            SelectCodeOption(comboBox, String.Equals(anchor, "right", StringComparison.OrdinalIgnoreCase) ? "right" : "left", 0);
-            parent.Controls.Add(comboBox);
-            return comboBox;
-        }
-
         private ComboBox AddMethodComboBox(Control parent, int left, int top)
         {
-            ComboBox comboBox = new ComboBox();
+            ComboBox comboBox = new WheelSafeComboBox();
             comboBox.Left = left;
             comboBox.Top = top;
             comboBox.Width = 110;
@@ -580,16 +809,57 @@ namespace CryptoMonitor
             return comboBox;
         }
 
+        private ComboBox AddFontFamilyComboBox(Control parent, int left, int top, string fontFamily)
+        {
+            ComboBox comboBox = new WheelSafeComboBox();
+            comboBox.Left = left;
+            comboBox.Top = top;
+            comboBox.Width = 190;
+            comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            comboBox.MaxDropDownItems = 12;
+
+            using (InstalledFontCollection fonts = new InstalledFontCollection())
+            {
+                for (int i = 0; i < fonts.Families.Length; i++)
+                {
+                    comboBox.Items.Add(fonts.Families[i].Name);
+                }
+            }
+
+            string selectedFont = String.IsNullOrWhiteSpace(fontFamily) ? "Microsoft YaHei UI" : fontFamily;
+            int selectedIndex = comboBox.FindStringExact(selectedFont);
+            if (selectedIndex < 0)
+            {
+                comboBox.Items.Insert(0, selectedFont);
+                selectedIndex = 0;
+            }
+
+            comboBox.SelectedIndex = selectedIndex;
+            parent.Controls.Add(comboBox);
+            return comboBox;
+        }
+
         private string GetSelectedLanguage()
         {
             CodeOption option = languageComboBox.SelectedItem as CodeOption;
             return option == null ? Localization.English : option.Code;
         }
 
-        private string GetSelectedAnchor()
+        private string GetSelectedFontFamily()
         {
-            CodeOption option = taskbarAnchorComboBox.SelectedItem as CodeOption;
-            return option == null ? "left" : option.Code;
+            string value = taskbarFontFamilyComboBox.Text.Trim();
+            return value.Length == 0 ? "Microsoft YaHei UI" : value;
+        }
+
+        private string GetSelectedBackgroundColor()
+        {
+            return AppConfig.NormalizeColorHex(windowBackgroundColorTextBox.Text, "#FFFFFF");
+        }
+
+        private void UpdateBackgroundPreview()
+        {
+            Color color;
+            windowBackgroundPreviewPanel.BackColor = TryParseColorHex(windowBackgroundColorTextBox.Text, out color) ? color : SystemColors.Control;
         }
 
         private NumericUpDown AddNumeric(Control parent, int left, int top, int min, int max, int value)
@@ -690,6 +960,16 @@ namespace CryptoMonitor
             return String.Join(Environment.NewLine, lines.ToArray());
         }
 
+        private static string Shorten(string text, int maxLength)
+        {
+            if (String.IsNullOrEmpty(text) || text.Length <= maxLength)
+            {
+                return text;
+            }
+
+            return text.Substring(0, maxLength) + Environment.NewLine + "...";
+        }
+
         private static bool HasEnabledItems(List<ApiItemConfig> items)
         {
             if (items == null)
@@ -767,6 +1047,81 @@ namespace CryptoMonitor
             return value;
         }
 
+        private void ApplyDpiLayoutScale()
+        {
+            float scale = GetDpiScale();
+            if (scale <= 1.05F)
+            {
+                return;
+            }
+
+            SuspendLayout();
+            try
+            {
+                Scale(new SizeF(scale, scale));
+                ClientSize = new Size(ScaleValue(920, scale), ScaleValue(650, scale));
+                MinimumSize = Size;
+            }
+            finally
+            {
+                ResumeLayout(false);
+            }
+        }
+
+        private static int ScaleValue(int value, float scale)
+        {
+            return (int)Math.Round(value * scale);
+        }
+
+        private static float GetDpiScale()
+        {
+            IntPtr dc = GetDC(IntPtr.Zero);
+            if (dc == IntPtr.Zero)
+            {
+                return 1F;
+            }
+
+            try
+            {
+                int dpi = GetDeviceCaps(dc, LOGPIXELSX);
+                if (dpi <= 0)
+                {
+                    return 1F;
+                }
+
+                return Math.Max(1F, Math.Min(2.5F, dpi / 96F));
+            }
+            finally
+            {
+                ReleaseDC(IntPtr.Zero, dc);
+            }
+        }
+
+        private static bool TryParseColorHex(string value, out Color color)
+        {
+            color = Color.Empty;
+            string normalized = AppConfig.NormalizeColorHex(value, "");
+            if (normalized.Length == 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                color = ColorTranslator.FromHtml(normalized);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string ColorToHex(Color color)
+        {
+            return "#" + color.R.ToString("X2") + color.G.ToString("X2") + color.B.ToString("X2");
+        }
+
         private sealed class CodeOption
         {
             public readonly string Name;
@@ -788,19 +1143,88 @@ namespace CryptoMonitor
         {
             private readonly ApiItemConfig item;
             private readonly int index;
+            private readonly string secondsUnit;
 
-            public ApiItemListOption(ApiItemConfig item, int index)
+            public ApiItemListOption(ApiItemConfig item, int index, string secondsUnit)
             {
                 this.item = item;
                 this.index = index;
+                this.secondsUnit = secondsUnit;
             }
 
             public override string ToString()
             {
                 string name = item == null ? "" : item.DisplayName(index);
                 string mark = item != null && item.Enabled ? "[x] " : "[ ] ";
-                return mark + name;
+                if (item == null)
+                {
+                    return mark + name;
+                }
+
+                return mark + name + " (" + item.IntervalSeconds.ToString() + " " + secondsUnit + " / " +
+                    item.TimeoutSeconds.ToString() + " " + secondsUnit + ")";
             }
         }
+
+        private sealed class ApiItemPresetOption
+        {
+            private readonly string name;
+            private readonly Func<int, int, ApiItemConfig> factory;
+
+            public ApiItemPresetOption(string name, Func<int, int, ApiItemConfig> factory)
+            {
+                this.name = name;
+                this.factory = factory;
+            }
+
+            public ApiItemConfig Create(int intervalSeconds, int timeoutSeconds)
+            {
+                return factory(intervalSeconds, timeoutSeconds);
+            }
+
+            public override string ToString()
+            {
+                return name;
+            }
+        }
+
+        private sealed class WheelSafeComboBox : ComboBox
+        {
+            protected override void WndProc(ref Message m)
+            {
+                if (m.Msg == WM_MOUSEWHEEL && DroppedDown && Items.Count > 0)
+                {
+                    int delta = (short)((m.WParam.ToInt64() >> 16) & 0xffff);
+                    int lines = SystemInformation.MouseWheelScrollLines;
+                    int step = lines <= 0 ? 1 : lines;
+                    int topIndex = SendMessage(Handle, CB_GETTOPINDEX, IntPtr.Zero, IntPtr.Zero).ToInt32();
+                    int nextIndex = delta > 0 ? topIndex - step : topIndex + step;
+                    nextIndex = Clamp(nextIndex, 0, Items.Count - 1);
+                    SendMessage(Handle, CB_SETTOPINDEX, new IntPtr(nextIndex), IntPtr.Zero);
+                    m.Result = IntPtr.Zero;
+                    return;
+                }
+
+                base.WndProc(ref m);
+            }
+
+            private const int WM_MOUSEWHEEL = 0x020A;
+            private const int CB_GETTOPINDEX = 0x015B;
+            private const int CB_SETTOPINDEX = 0x015C;
+
+            [DllImport("user32.dll")]
+            private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
+        }
+
+        private const int LOGPIXELSX = 88;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetDC(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        private static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+
+        [DllImport("gdi32.dll")]
+        private static extern int GetDeviceCaps(IntPtr hdc, int index);
     }
 }

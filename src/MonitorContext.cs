@@ -36,15 +36,7 @@ namespace CryptoMonitor
 
             positionTimer = new Timer();
             positionTimer.Interval = 5000;
-            positionTimer.Tick += delegate
-            {
-                priceForm.EnsureShown();
-
-                if (priceForm.Visible)
-                {
-                    priceForm.ReattachIfNeeded();
-                }
-            };
+            positionTimer.Tick += delegate { priceForm.EnsureShown(); };
 
             Application.Idle += FirstApplicationIdle;
         }
@@ -98,13 +90,14 @@ namespace CryptoMonitor
         {
             Application.Idle -= FirstApplicationIdle;
             ApplyConfig();
-            priceForm.SetText("CryptoMonitor", false);
+            RefreshPrices();
         }
 
         private void ApplyConfig()
         {
             refreshTimer.Stop();
             refreshTimer.Interval = Math.Max(30, config.GetPollIntervalSeconds()) * 1000;
+            refreshTimer.Start();
 
             priceForm.ApplyConfig(config);
             config.ShowTaskbarWindow = true;
@@ -250,8 +243,7 @@ namespace CryptoMonitor
             }
 
             priceForm.Show();
-            priceForm.AttachToTaskbar();
-            priceForm.PositionInTaskbar();
+            priceForm.EnsureShown();
         }
 
         private void OpenConfigFolder()

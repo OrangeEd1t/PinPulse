@@ -1,53 +1,143 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
-using System.IO;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace CryptoMonitor
 {
     internal sealed class TaskbarPriceForm : Form
     {
-        private readonly Label priceLabel;
-        private IntPtr taskbarHandle;
-        private string taskbarAnchor = "left";
-        private int taskbarOffsetX = 280;
-        private int taskbarOffsetY;
-        private int taskbarFixedWidth;
-        private int taskbarMinWidth = 190;
-        private int taskbarMaxWidth = 520;
-        private bool isPositioning;
-        private NativeRect lastWindowRect;
-        private bool hasLastWindowRect;
+        private readonly string appDir;
+        private readonly CryptoPriceService priceService;
+        private readonly Timer refreshTimer;
+        private readonly Timer visibilityTimer;
+        private readonly Timer positionSaveTimer;
+        private readonly NotifyIcon notifyIcon;
+        private ContextMenuStrip activeMenu;
+        private AppConfig config;
+        private bool isRefreshing;
+        private bool isSettingsOpen;
+        private bool isMenuOpen;
+        private bool dragging;
+        private bool initialPositionApplied;
+        private Point dragOffset;
+        private string displayText = "BTC --   ETH --";
+        private Color displayColor = Color.Black;
+        private Color windowBackgroundColor = Color.White;
+        private bool windowBackgroundTransparent = true;
+        private int fixedWidth;
+        private int minWidth = 260;
+        private int maxWidth = 520;
 
         public TaskbarPriceForm()
+            : this(null, null)
         {
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-            ShowInTaskbar = true;
-            StartPosition = FormStartPosition.CenterScreen;
+        }
+
+        public TaskbarPriceForm(string appDir, AppConfig config)
+        {
+            this.appDir = appDir;
+            this.config = config;
+            priceService = appDir == null ? null : new CryptoPriceService();
+
+            FormBorderStyle = FormBorderStyle.None;
+            ShowIcon = false;
+            ShowInTaskbar = false;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            StartPosition = FormStartPosition.Manual;
             TopMost = true;
-            BackColor = Color.FromArgb(32, 32, 32);
-            ForeColor = Color.White;
-            Height = 80;
+            BackColor = Color.Black;
+            ForeColor = Color.Black;
+            Font = CreateDisplayFont(config);
+            Height = 34;
             Width = 420;
-            Padding = new Padding(8, 0, 8, 0);
+            Padding = new Padding(10, 4, 10, 4);
             Text = "CryptoMonitor";
 
-            priceLabel = new Label();
-            priceLabel.AutoSize = false;
-            priceLabel.Dock = DockStyle.Fill;
-            priceLabel.TextAlign = ContentAlignment.MiddleCenter;
-            priceLabel.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
-            priceLabel.ForeColor = Color.White;
-            priceLabel.Text = "BTC --   ETH --";
-            Controls.Add(priceLabel);
+            MouseDown += DragMouseDown;
+            MouseMove += DragMouseMove;
+            MouseUp += DragMouseUp;
 
-            Load += delegate { LogState("Load"); };
-            Shown += delegate { LogState("Shown"); };
-            VisibleChanged += delegate { LogState("VisibleChanged"); };
-            FormClosing += delegate(object sender, FormClosingEventArgs e) { LogState("FormClosing " + e.CloseReason.ToString()); };
-            FormClosed += delegate { LogState("FormClosed"); };
-            Disposed += delegate { LogState("Disposed"); };
+            refreshTimer = new Timer();
+            refreshTimer.Tick += delegate { RefreshPrices(); };
+
+            visibilityTimer = new Timer();
+            visibilityTimer.Interval = 2000;
+            visibilityTimer.Tick += delegate { EnsureShown(); };
+            visibilityTimer.Start();
+
+            positionSaveTimer = new Timer();
+            positionSaveTimer.Interval = 500;
+            positionSaveTimer.Tick += delegate
+            {
+                positionSaveTimer.Stop();
+                SaveWindowPosition();
+            };
+
+            notifyIcon = new NotifyIcon();
+            notifyIcon.Icon = SystemIcons.Application;
+            notifyIcon.Text = "CryptoMonitor";
+            notifyIcon.Visible = appDir != null;
+            notifyIcon.DoubleClick += delegate { ShowSettings(); };
+
+            if (config != null)
+            {
+                ApplyConfig(config);
+                SetMenu(BuildMenu());
+                Shown += delegate { RefreshPrices(); };
+            }
+        }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+                cp.ExStyle &= ~WS_EX_APPWINDOW;
+                return cp;
+            }
+        }
+
+        protected override bool ShowWithoutActivation
+        {
+            get { return true; }
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            EnsureTopMost();
+            RenderLayeredWindow();
+        }
+
+        protected override void OnLocationChanged(EventArgs e)
+        {
+            base.OnLocationChanged(e);
+            if (IsHandleCreated && Visible)
+            {
+                RenderLayeredWindow();
+                ScheduleWindowPositionSave();
+            }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            refreshTimer.Stop();
+            visibilityTimer.Stop();
+            positionSaveTimer.Stop();
+            refreshTimer.Dispose();
+            visibilityTimer.Dispose();
+            positionSaveTimer.Dispose();
+            notifyIcon.Visible = false;
+            notifyIcon.Dispose();
+            base.OnFormClosed(e);
         }
 
         public void SetText(string text, bool isError)
@@ -57,10 +147,16 @@ namespace CryptoMonitor
                 return;
             }
 
-            priceLabel.Text = text;
-            priceLabel.ForeColor = isError ? Color.FromArgb(255, 130, 130) : Color.White;
+            displayText = String.IsNullOrEmpty(text) ? "" : text;
+            displayColor = isError ? Color.FromArgb(190, 30, 30) : Color.Black;
+            if (isSettingsOpen)
+            {
+                return;
+            }
+
             ResizeToText();
             EnsureShown();
+            RenderLayeredWindow();
         }
 
         public void ApplyConfig(AppConfig config)
@@ -70,200 +166,44 @@ namespace CryptoMonitor
                 return;
             }
 
-            taskbarAnchor = String.Equals(config.TaskbarAnchor, "right", StringComparison.OrdinalIgnoreCase)
-                ? "right"
-                : "left";
-            taskbarOffsetX = config.TaskbarOffsetX;
-            taskbarOffsetY = config.TaskbarOffsetY;
-            taskbarFixedWidth = Clamp(config.TaskbarFixedWidth, 0, 4000);
-            taskbarMinWidth = Clamp(config.TaskbarMinWidth, 80, 4000);
-            taskbarMaxWidth = Clamp(Math.Max(config.TaskbarMaxWidth, taskbarMinWidth), 80, 4000);
+            this.config = config;
+            fixedWidth = Clamp(config.TaskbarFixedWidth, 0, 4000);
+            minWidth = Clamp(config.TaskbarMinWidth, 260, 4000);
+            maxWidth = Clamp(Math.Max(config.TaskbarMaxWidth, minWidth), 260, 4000);
+            Font = CreateDisplayFont(config);
+            windowBackgroundColor = ParseColor(config.WindowBackgroundColor, Color.White);
+            windowBackgroundTransparent = config.WindowBackgroundTransparent;
             ResizeToText();
+            ApplyInitialWindowPosition();
+
+            refreshTimer.Stop();
+            refreshTimer.Interval = Math.Max(30, config.GetPollIntervalSeconds()) * 1000;
+            refreshTimer.Start();
             EnsureShown();
         }
 
         public void SetMenu(ContextMenuStrip menu)
         {
-            ContextMenuStrip = menu;
-            priceLabel.ContextMenuStrip = menu;
-        }
-
-        public bool AttachToTaskbar()
-        {
-            IntPtr currentTaskbar = FindWindow("Shell_TrayWnd", null);
-            if (currentTaskbar == IntPtr.Zero)
+            if (activeMenu != null)
             {
-                return false;
+                activeMenu.Opened -= MenuOpened;
+                activeMenu.Closed -= MenuClosed;
             }
 
-            taskbarHandle = currentTaskbar;
-            return true;
-        }
-
-        public void PositionInTaskbar()
-        {
-            if (IsDisposed || isPositioning)
+            activeMenu = menu;
+            if (activeMenu != null)
             {
-                return;
+                activeMenu.Opened += MenuOpened;
+                activeMenu.Closed += MenuClosed;
             }
 
-            isPositioning = true;
-            try
-            {
-            EnsureShown();
-            if (!AttachToTaskbar())
-            {
-                PositionFallback();
-                return;
-            }
-
-            NativeRect taskbarRect;
-            if (!GetWindowRect(taskbarHandle, out taskbarRect))
-            {
-                PositionFallback();
-                return;
-            }
-
-            NativeRect layoutRect = taskbarRect;
-            Rectangle taskbarBounds = new Rectangle(
-                taskbarRect.Left,
-                taskbarRect.Top,
-                Math.Max(1, taskbarRect.Right - taskbarRect.Left),
-                Math.Max(1, taskbarRect.Bottom - taskbarRect.Top));
-            Rectangle workingArea = Screen.FromRectangle(taskbarBounds).WorkingArea;
-            int taskbarWidth = Math.Max(1, layoutRect.Right - layoutRect.Left);
-            int taskbarHeight = Math.Max(1, layoutRect.Bottom - layoutRect.Top);
-            bool horizontal = taskbarWidth >= taskbarHeight;
-
-            int width = Width;
-            int height = Height;
-            int rightLimit = taskbarWidth - 8;
-            int bottomLimit = taskbarHeight - 8;
-            int leftLimit = 2;
-            int topLimit = 2;
-
-            IntPtr trayNotify = FindWindowEx(taskbarHandle, IntPtr.Zero, "TrayNotifyWnd", null);
-            if (trayNotify != IntPtr.Zero)
-            {
-                NativeRect trayRect;
-                if (GetWindowRect(trayNotify, out trayRect))
-                {
-                    Point trayTopLeft = ScreenToTaskbarPoint(trayRect.Left, trayRect.Top, layoutRect);
-                    if (horizontal)
-                    {
-                        rightLimit = Math.Max(8, trayTopLeft.X - 8);
-                    }
-                    else
-                    {
-                        bottomLimit = Math.Max(8, trayTopLeft.Y - 8);
-                    }
-                }
-            }
-
-            int x;
-            int y;
-            if (horizontal)
-            {
-                if (taskbarAnchor == "right")
-                {
-                    x = rightLimit - width + taskbarOffsetX;
-                }
-                else
-                {
-                    x = leftLimit + taskbarOffsetX;
-                }
-
-                y = Math.Max(topLimit, (taskbarHeight - height) / 2 + taskbarOffsetY);
-            }
-            else
-            {
-                x = Math.Max(leftLimit, (taskbarWidth - width) / 2 + taskbarOffsetX);
-                y = taskbarAnchor == "right"
-                    ? bottomLimit - height + taskbarOffsetY
-                    : topLimit + taskbarOffsetY;
-            }
-
-            NativeRect trafficRect;
-            if (TryFindTrafficMonitorRect(layoutRect, out trafficRect))
-            {
-                NativeRect desired = new NativeRect();
-                desired.Left = x;
-                desired.Top = y;
-                desired.Right = x + width;
-                desired.Bottom = y + height;
-                if (Intersects(desired, trafficRect))
-                {
-                    if (horizontal)
-                    {
-                        if (taskbarAnchor == "right")
-                        {
-                            x = trafficRect.Left - width - 8;
-                        }
-                        else
-                        {
-                            x = trafficRect.Right + 8;
-                        }
-                    }
-                    else
-                    {
-                        if (taskbarAnchor == "right")
-                        {
-                            y = trafficRect.Top - height - 8;
-                        }
-                        else
-                        {
-                            y = trafficRect.Bottom + 8;
-                        }
-                    }
-                }
-            }
-
-            x = Clamp(x, leftLimit, Math.Max(leftLimit, taskbarWidth - width - 2));
-            y = Clamp(y, topLimit, Math.Max(topLimit, taskbarHeight - height - 2));
-
-            int screenX;
-            if (taskbarAnchor == "right")
-            {
-                screenX = workingArea.Right - width - 12 + taskbarOffsetX;
-            }
-            else
-            {
-                screenX = workingArea.Left + taskbarOffsetX;
-            }
-
-            int screenY = workingArea.Bottom - height - 12 + taskbarOffsetY;
-            screenX = Clamp(screenX, workingArea.Left, Math.Max(workingArea.Left, workingArea.Right - width));
-            screenY = Clamp(screenY, workingArea.Top, Math.Max(workingArea.Top, workingArea.Bottom - height));
-
-            NativeRect nextRect = new NativeRect();
-            nextRect.Left = screenX;
-            nextRect.Top = screenY;
-            nextRect.Right = nextRect.Left + width;
-            nextRect.Bottom = nextRect.Top + height;
-            if (hasLastWindowRect &&
-                lastWindowRect.Left == nextRect.Left &&
-                lastWindowRect.Top == nextRect.Top &&
-                lastWindowRect.Right == nextRect.Right &&
-                lastWindowRect.Bottom == nextRect.Bottom)
-            {
-                return;
-            }
-
-            Bounds = new Rectangle(nextRect.Left, nextRect.Top, width, height);
-            Show();
-            BringToFront();
-            lastWindowRect = nextRect;
-            hasLastWindowRect = true;
-            }
-            finally
-            {
-                isPositioning = false;
-            }
+            ContextMenuStrip = null;
+            notifyIcon.ContextMenuStrip = menu;
         }
 
         public void EnsureShown()
         {
-            if (IsDisposed)
+            if (IsDisposed || isSettingsOpen || isMenuOpen)
             {
                 return;
             }
@@ -279,75 +219,399 @@ namespace CryptoMonitor
             }
 
             TopMost = true;
-            LogState("EnsureShown");
+            EnsureTopMost();
+            RenderLayeredWindow();
         }
 
-        private void PositionFallback()
+        private void MenuOpened(object sender, EventArgs e)
         {
-            Rectangle workingArea = Screen.PrimaryScreen.WorkingArea;
-            int width = Width;
-            int height = Height;
-            int x = workingArea.Left + Math.Max(16, taskbarOffsetX);
-            int y = workingArea.Bottom - height - 16;
-            Bounds = new Rectangle(x, y, width, height);
-            Show();
-            BringToFront();
+            isMenuOpen = true;
+            visibilityTimer.Stop();
+        }
+
+        private void MenuClosed(object sender, ToolStripDropDownClosedEventArgs e)
+        {
+            isMenuOpen = false;
+            if (!isSettingsOpen && !visibilityTimer.Enabled)
+            {
+                visibilityTimer.Start();
+            }
+        }
+
+        public bool AttachToTaskbar()
+        {
+            return false;
+        }
+
+        public void PositionInTaskbar()
+        {
+            EnsureShown();
         }
 
         public void ReattachIfNeeded()
         {
-            if (!IsDisposed)
+            EnsureShown();
+        }
+
+        private ContextMenuStrip BuildMenu()
+        {
+            ContextMenuStrip menu = new ContextMenuStrip();
+            menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuShowHide"), null, delegate { ToggleWindow(); }));
+            menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuRefreshNow"), null, delegate { RefreshPrices(); }));
+            menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuSettings"), null, delegate { ShowSettings(); }));
+            menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuOpenConfigFolder"), null, delegate { OpenConfigFolder(); }));
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuExit"), null, delegate { Close(); }));
+            return menu;
+        }
+
+        private void RefreshPrices()
+        {
+            if (priceService == null || config == null || isRefreshing || IsDisposed)
             {
-                AttachToTaskbar();
-                PositionInTaskbar();
+                return;
             }
+
+            isRefreshing = true;
+            SetText(Localization.Text(config, "Updating"), false);
+            priceService.FetchAsync(config).ContinueWith(delegate(Task<string> task)
+            {
+                if (IsDisposed || !IsHandleCreated)
+                {
+                    isRefreshing = false;
+                    return;
+                }
+
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    try
+                    {
+                        if (task.IsFaulted)
+                        {
+                            Exception ex = task.Exception == null ? null : task.Exception.GetBaseException();
+                            string message = ex == null ? Localization.Text(config, "UpdateFailed") : ex.Message;
+                            ShowError(message);
+                        }
+                        else
+                        {
+                            ShowText(task.Result);
+                        }
+                    }
+                    finally
+                    {
+                        isRefreshing = false;
+                    }
+                });
+            }, TaskScheduler.Default);
+        }
+
+        private void ShowText(string text)
+        {
+            SetText(text, false);
+            notifyIcon.Text = TruncateNotifyText("CryptoMonitor - " + text);
+        }
+
+        private void ShowError(string message)
+        {
+            SetText(Localization.Text(config, "ApiError"), true);
+            notifyIcon.Text = TruncateNotifyText("CryptoMonitor - " + message);
+        }
+
+        private void ShowSettings()
+        {
+            if (config == null || isSettingsOpen)
+            {
+                return;
+            }
+
+            isSettingsOpen = true;
+            visibilityTimer.Stop();
+            refreshTimer.Stop();
+            TopMost = false;
+
+            try
+            {
+                using (SettingsForm settings = new SettingsForm(config))
+                {
+                    if (settings.ShowDialog() == DialogResult.OK)
+                    {
+                        config.Save(appDir);
+                        SetMenu(BuildMenu());
+                        ApplyConfig(config);
+                        RefreshPrices();
+                    }
+                }
+            }
+            finally
+            {
+                isSettingsOpen = false;
+                TopMost = true;
+                visibilityTimer.Start();
+                if (!refreshTimer.Enabled)
+                {
+                    refreshTimer.Start();
+                }
+
+                EnsureShown();
+            }
+        }
+
+        private void EnsureTopMost()
+        {
+            if (IsDisposed || !IsHandleCreated || isSettingsOpen)
+            {
+                return;
+            }
+
+            TopMost = true;
+            SetWindowPos(
+                Handle,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
+
+        private void ToggleWindow()
+        {
+            if (Visible)
+            {
+                Hide();
+            }
+            else
+            {
+                EnsureShown();
+            }
+        }
+
+        private void OpenConfigFolder()
+        {
+            if (!String.IsNullOrEmpty(appDir))
+            {
+                Process.Start("explorer.exe", appDir);
+            }
+        }
+
+        private void DragMouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left)
+            {
+                return;
+            }
+
+            dragging = true;
+            Capture = true;
+            dragOffset = e.Location;
+        }
+
+        private void DragMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!dragging)
+            {
+                return;
+            }
+
+            Point screen = Cursor.Position;
+            Location = new Point(screen.X - dragOffset.X, screen.Y - dragOffset.Y);
+        }
+
+        private void DragMouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                dragging = false;
+                Capture = false;
+                SaveWindowPosition();
+            }
+        }
+
+        private void ScheduleWindowPositionSave()
+        {
+            if (config == null || String.IsNullOrEmpty(appDir) || !initialPositionApplied || isSettingsOpen)
+            {
+                return;
+            }
+
+            positionSaveTimer.Stop();
+            positionSaveTimer.Start();
+        }
+
+        private void ApplyInitialWindowPosition()
+        {
+            if (initialPositionApplied || IsHandleCreated || Visible)
+            {
+                return;
+            }
+
+            initialPositionApplied = true;
+            RestoreWindowPosition();
+        }
+
+        private void RestoreWindowPosition()
+        {
+            if (config != null && config.HasSavedWindowPosition())
+            {
+                Point saved = new Point(config.WindowLeft, config.WindowTop);
+                if (IsPointNearAnyScreen(saved))
+                {
+                    Location = saved;
+                    return;
+                }
+            }
+
+            CenterToScreen();
+        }
+
+        private void SaveWindowPosition()
+        {
+            if (config == null || String.IsNullOrEmpty(appDir))
+            {
+                return;
+            }
+
+            config.WindowLeft = Left;
+            config.WindowTop = Top;
+            try
+            {
+                config.Save(appDir);
+            }
+            catch
+            {
+                // The app should keep running even if config cannot be written.
+            }
+        }
+
+        private bool IsPointNearAnyScreen(Point point)
+        {
+            Rectangle windowBounds = new Rectangle(point.X, point.Y, Math.Max(1, Width), Math.Max(1, Height));
+            foreach (Screen screen in Screen.AllScreens)
+            {
+                Rectangle area = screen.WorkingArea;
+                area.Inflate(80, 80);
+                if (area.IntersectsWith(windowBounds))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void ResizeToText()
         {
-            if (taskbarFixedWidth > 0)
+            int textWidth;
+            int textHeight;
+            using (Bitmap bitmap = new Bitmap(1, 1))
+            using (Graphics graphics = Graphics.FromImage(bitmap))
             {
-                Width = taskbarFixedWidth;
+                graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+                SizeF size = graphics.MeasureString(displayText, Font, Int32.MaxValue, StringFormat.GenericTypographic);
+                textWidth = (int)Math.Ceiling(size.Width);
+                textHeight = (int)Math.Ceiling(size.Height);
+            }
+
+            Width = fixedWidth > 0 ? fixedWidth : Math.Max(minWidth, Math.Min(maxWidth, textWidth + Padding.Horizontal + 8));
+            Height = Math.Max(28, textHeight + Padding.Vertical + 4);
+        }
+
+        private void RenderLayeredWindow()
+        {
+            if (IsDisposed || !IsHandleCreated || Width <= 0 || Height <= 0)
+            {
                 return;
             }
 
-            Size preferred = TextRenderer.MeasureText(priceLabel.Text, priceLabel.Font);
-            Width = Math.Max(260, Math.Max(taskbarMinWidth, Math.Min(taskbarMaxWidth, preferred.Width + 48)));
+            const int renderScale = 3;
+            using (Bitmap highResBitmap = new Bitmap(Width * renderScale, Height * renderScale, PixelFormat.Format32bppPArgb))
+            using (Bitmap bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppPArgb))
+            {
+                using (Graphics graphics = Graphics.FromImage(highResBitmap))
+                {
+                    graphics.Clear(Color.Transparent);
+                    graphics.CompositingMode = CompositingMode.SourceOver;
+                    graphics.CompositingQuality = CompositingQuality.HighQuality;
+                    graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    graphics.SmoothingMode = SmoothingMode.HighQuality;
+                    graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+                    graphics.ScaleTransform(renderScale, renderScale);
+
+                    Color fillColor = windowBackgroundTransparent
+                        ? Color.FromArgb(8, 0, 0, 0)
+                        : Color.FromArgb(255, windowBackgroundColor);
+                    using (Brush background = new SolidBrush(fillColor))
+                    {
+                        graphics.FillRectangle(background, 0, 0, Width, Height);
+                    }
+
+                    using (StringFormat format = new StringFormat(StringFormat.GenericTypographic))
+                    using (Brush brush = new SolidBrush(displayColor))
+                    {
+                        format.Alignment = StringAlignment.Center;
+                        format.LineAlignment = StringAlignment.Center;
+                        format.FormatFlags |= StringFormatFlags.NoWrap;
+                        format.Trimming = StringTrimming.EllipsisCharacter;
+
+                        RectangleF rect = new RectangleF(
+                            Padding.Left,
+                            Padding.Top,
+                            Math.Max(1, Width - Padding.Horizontal),
+                            Math.Max(1, Height - Padding.Vertical));
+                        graphics.DrawString(displayText, Font, brush, rect, format);
+                    }
+                }
+
+                using (Graphics graphics = Graphics.FromImage(bitmap))
+                {
+                    graphics.Clear(Color.Transparent);
+                    graphics.CompositingMode = CompositingMode.SourceCopy;
+                    graphics.CompositingQuality = CompositingQuality.HighQuality;
+                    graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    graphics.SmoothingMode = SmoothingMode.HighQuality;
+                    graphics.DrawImage(
+                        highResBitmap,
+                        new Rectangle(0, 0, Width, Height),
+                        new Rectangle(0, 0, highResBitmap.Width, highResBitmap.Height),
+                        GraphicsUnit.Pixel);
+                }
+
+                IntPtr screenDc = GetDC(IntPtr.Zero);
+                IntPtr memoryDc = CreateCompatibleDC(screenDc);
+                IntPtr bitmapHandle = bitmap.GetHbitmap(Color.FromArgb(0));
+                IntPtr oldBitmap = SelectObject(memoryDc, bitmapHandle);
+                try
+                {
+                    NativePoint topPos = new NativePoint(Left, Top);
+                    NativeSize size = new NativeSize(Width, Height);
+                    NativePoint source = new NativePoint(0, 0);
+                    BlendFunction blend = new BlendFunction();
+                    blend.BlendOp = AC_SRC_OVER;
+                    blend.BlendFlags = 0;
+                    blend.SourceConstantAlpha = 255;
+                    blend.AlphaFormat = AC_SRC_ALPHA;
+                    UpdateLayeredWindow(Handle, screenDc, ref topPos, ref size, memoryDc, ref source, 0, ref blend, ULW_ALPHA);
+                }
+                finally
+                {
+                    SelectObject(memoryDc, oldBitmap);
+                    DeleteObject(bitmapHandle);
+                    DeleteDC(memoryDc);
+                    ReleaseDC(IntPtr.Zero, screenDc);
+                }
+            }
         }
 
-        private bool TryFindTrafficMonitorRect(NativeRect originRect, out NativeRect rect)
+        private static string TruncateNotifyText(string text)
         {
-            rect = new NativeRect();
-            IntPtr hwnd = FindChildByTitle(taskbarHandle, "TrafficMonitorTaskbarWindow");
-            if (hwnd == IntPtr.Zero)
+            if (String.IsNullOrEmpty(text) || text.Length <= 63)
             {
-                return false;
+                return text;
             }
 
-            NativeRect screenRect;
-            if (!GetWindowRect(hwnd, out screenRect))
-            {
-                return false;
-            }
-
-            Point topLeft = ScreenToTaskbarPoint(screenRect.Left, screenRect.Top, originRect);
-            Point bottomRight = ScreenToTaskbarPoint(screenRect.Right, screenRect.Bottom, originRect);
-
-            rect.Left = topLeft.X;
-            rect.Top = topLeft.Y;
-            rect.Right = bottomRight.X;
-            rect.Bottom = bottomRight.Y;
-            return true;
-        }
-
-        private static Point ScreenToTaskbarPoint(int x, int y, NativeRect taskbarRect)
-        {
-            return new Point(x - taskbarRect.Left, y - taskbarRect.Top);
-        }
-
-        private static bool Intersects(NativeRect a, NativeRect b)
-        {
-            return a.Left < b.Right && a.Right > b.Left && a.Top < b.Bottom && a.Bottom > b.Top;
+            return text.Substring(0, 60) + "...";
         }
 
         private static int Clamp(int value, int min, int max)
@@ -365,97 +629,161 @@ namespace CryptoMonitor
             return value;
         }
 
-        private static IntPtr FindChildByTitle(IntPtr parent, string title)
+        private static Font CreateDisplayFont(AppConfig config)
         {
-            FindState state = new FindState();
-            state.Title = title;
-            EnumChildWindows(parent, delegate(IntPtr hwnd, IntPtr lParam)
-            {
-                string text = GetWindowTextValue(hwnd);
-                if (String.Equals(text, state.Title, StringComparison.Ordinal))
-                {
-                    state.Handle = hwnd;
-                    return false;
-                }
+            string family = config == null || String.IsNullOrWhiteSpace(config.TaskbarFontFamily)
+                ? "Microsoft YaHei UI"
+                : config.TaskbarFontFamily.Trim();
+            float size = config == null ? 10F : Clamp(config.TaskbarFontSize, 6, 36);
+            FontStyle style = config != null && config.TaskbarFontBold ? FontStyle.Bold : FontStyle.Regular;
 
-                return true;
-            }, IntPtr.Zero);
-            return state.Handle;
-        }
-
-        private static string GetWindowTextValue(IntPtr hwnd)
-        {
-            System.Text.StringBuilder builder = new System.Text.StringBuilder(256);
-            GetWindowText(hwnd, builder, builder.Capacity);
-            return builder.ToString();
-        }
-
-        private void LogState(string action)
-        {
             try
             {
-                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "debug.log");
-                string line = DateTime.Now.ToString("HH:mm:ss.fff") +
-                    " " + action +
-                    " Visible=" + Visible.ToString() +
-                    " IsHandleCreated=" + IsHandleCreated.ToString() +
-                    " IsDisposed=" + IsDisposed.ToString() +
-                    " WindowState=" + WindowState.ToString() +
-                    " Bounds=" + Bounds.ToString() +
-                    Environment.NewLine;
-                File.AppendAllText(path, line);
+                return new Font(family, size, style, GraphicsUnit.Point);
             }
             catch
             {
+                return new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
             }
         }
 
+        private static Color ParseColor(string value, Color fallback)
+        {
+            string normalized = AppConfig.NormalizeColorHex(value, "");
+            if (normalized.Length == 0)
+            {
+                return fallback;
+            }
+
+            try
+            {
+                return ColorTranslator.FromHtml(normalized);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_CONTEXTMENU)
+            {
+                return;
+            }
+
+            if (m.Msg == WM_NCLBUTTONDBLCLK)
+            {
+                return;
+            }
+
+            base.WndProc(ref m);
+
+            if (m.Msg == WM_EXITSIZEMOVE)
+            {
+                positionSaveTimer.Stop();
+                SaveWindowPosition();
+                return;
+            }
+
+            if (m.Msg == WM_NCHITTEST && (int)m.Result == HTCLIENT)
+            {
+                m.Result = new IntPtr(HTCAPTION);
+            }
+        }
+
+        private const int WS_EX_LAYERED = 0x00080000;
+        private const int WS_EX_TOOLWINDOW = 0x00000080;
+        private const int WS_EX_APPWINDOW = 0x00040000;
+        private const int WS_EX_NOACTIVATE = 0x08000000;
+        private const int WM_CONTEXTMENU = 0x007B;
+        private const int WM_NCHITTEST = 0x0084;
+        private const int WM_NCLBUTTONDBLCLK = 0x00A3;
+        private const int WM_EXITSIZEMOVE = 0x0232;
+        private const int HTCLIENT = 1;
+        private const int HTCAPTION = 2;
+        private const int ULW_ALPHA = 0x00000002;
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
         private const uint SWP_NOACTIVATE = 0x0010;
         private const uint SWP_SHOWWINDOW = 0x0040;
+        private const byte AC_SRC_OVER = 0x00;
+        private const byte AC_SRC_ALPHA = 0x01;
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct NativeRect
+        private struct NativePoint
         {
-            public int Left;
-            public int Top;
-            public int Right;
-            public int Bottom;
+            public int X;
+            public int Y;
+
+            public NativePoint(int x, int y)
+            {
+                X = x;
+                Y = y;
+            }
         }
 
-        private sealed class FindState
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeSize
         {
-            public string Title;
-            public IntPtr Handle;
+            public int Width;
+            public int Height;
+
+            public NativeSize(int width, int height)
+            {
+                Width = width;
+                Height = height;
+            }
         }
 
-        private delegate bool EnumWindowProc(IntPtr hwnd, IntPtr lParam);
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        private struct BlendFunction
+        {
+            public byte BlendOp;
+            public byte BlendFlags;
+            public byte SourceConstantAlpha;
+            public byte AlphaFormat;
+        }
 
         [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr FindWindow(string className, string windowName);
+        private static extern bool UpdateLayeredWindow(
+            IntPtr hwnd,
+            IntPtr hdcDst,
+            ref NativePoint pptDst,
+            ref NativeSize psize,
+            IntPtr hdcSrc,
+            ref NativePoint pptSrc,
+            int crKey,
+            ref BlendFunction pblend,
+            int dwFlags);
 
         [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr FindWindowEx(IntPtr parentHandle, IntPtr childAfter, string className, string windowName);
+        private static extern bool SetWindowPos(
+            IntPtr hwnd,
+            IntPtr hwndInsertAfter,
+            int x,
+            int y,
+            int cx,
+            int cy,
+            uint flags);
 
         [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr GetParent(IntPtr childHandle);
+        private static extern IntPtr GetDC(IntPtr hwnd);
 
         [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool GetClientRect(IntPtr hWnd, out NativeRect rect);
+        private static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
 
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect rect);
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
 
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool ScreenToClient(IntPtr hWnd, ref Point point);
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern bool DeleteDC(IntPtr hdc);
 
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool EnumChildWindows(IntPtr parentHandle, EnumWindowProc callback, IntPtr lParam);
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern IntPtr SelectObject(IntPtr hdc, IntPtr hgdiobj);
 
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int maxCount);
-
-        [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
-
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern bool DeleteObject(IntPtr hObject);
     }
 }
