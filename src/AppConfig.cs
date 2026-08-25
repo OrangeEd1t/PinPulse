@@ -26,6 +26,7 @@ namespace CryptoMonitor
         public string TaskbarFontFamily;
         public int TaskbarFontSize;
         public bool TaskbarFontBold;
+        public bool WindowTextWrap;
         public string WindowBackgroundColor;
         public bool WindowBackgroundTransparent;
         public int WindowLeft;
@@ -55,6 +56,7 @@ namespace CryptoMonitor
             TaskbarFontFamily = "Microsoft YaHei UI";
             TaskbarFontSize = 10;
             TaskbarFontBold = false;
+            WindowTextWrap = false;
             WindowBackgroundColor = "#FFFFFF";
             WindowBackgroundTransparent = true;
             WindowLeft = Int32.MinValue;
@@ -103,6 +105,7 @@ namespace CryptoMonitor
                 config.TaskbarFontFamily = GetString(root, "windowFontFamily", GetString(root, "taskbarFontFamily", config.TaskbarFontFamily));
                 config.TaskbarFontSize = Clamp(GetInt(root, "windowFontSize", GetInt(root, "taskbarFontSize", config.TaskbarFontSize)), 6, 36);
                 config.TaskbarFontBold = GetBool(root, "windowFontBold", GetBool(root, "taskbarFontBold", config.TaskbarFontBold));
+                config.WindowTextWrap = GetBool(root, "windowTextWrap", GetBool(root, "taskbarTextWrap", config.WindowTextWrap));
                 config.WindowBackgroundColor = NormalizeColorHex(GetString(root, "windowBackgroundColor", GetString(root, "taskbarBackgroundColor", config.WindowBackgroundColor)), config.WindowBackgroundColor);
                 config.WindowBackgroundTransparent = GetBool(root, "windowBackgroundTransparent", GetBool(root, "taskbarBackgroundTransparent", config.WindowBackgroundTransparent));
                 config.WindowLeft = GetOptionalInt(root, "windowLeft", config.WindowLeft, -32000, 32000);
@@ -178,6 +181,7 @@ namespace CryptoMonitor
             root["windowFontFamily"] = String.IsNullOrWhiteSpace(TaskbarFontFamily) ? "Microsoft YaHei UI" : TaskbarFontFamily;
             root["windowFontSize"] = Clamp(TaskbarFontSize, 6, 36);
             root["windowFontBold"] = TaskbarFontBold;
+            root["windowTextWrap"] = WindowTextWrap;
             root["windowBackgroundColor"] = NormalizeColorHex(WindowBackgroundColor, "#FFFFFF");
             root["windowBackgroundTransparent"] = WindowBackgroundTransparent;
             if (HasSavedWindowPosition())
@@ -314,6 +318,9 @@ namespace CryptoMonitor
             ApiItemConfig item = new ApiItemConfig();
             item.Id = symbol.ToLowerInvariant();
             item.Name = symbol.ToUpperInvariant();
+            item.Type = ApiItemConfig.TypeCoin;
+            item.Symbol = symbol.ToUpperInvariant();
+            item.QuoteCurrency = currency.ToUpperInvariant();
             item.Enabled = true;
             item.Url = url;
             item.Method = "GET";
@@ -323,7 +330,7 @@ namespace CryptoMonitor
             return item;
         }
 
-        private static string AlternativeMeDataId(string symbol)
+        public static string AlternativeMeDataId(string symbol)
         {
             if (String.IsNullOrEmpty(symbol))
             {
@@ -377,6 +384,76 @@ namespace CryptoMonitor
             }
 
             return "";
+        }
+
+        public static void ApplyItemTypeDefaults(ApiItemConfig item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            item.Type = ApiItemConfig.NormalizeType(item.Type);
+            if (item.Type == ApiItemConfig.TypeCoin)
+            {
+                string symbol = String.IsNullOrWhiteSpace(item.Symbol) ? item.Name : item.Symbol;
+                symbol = String.IsNullOrWhiteSpace(symbol) ? "BTC" : symbol.Trim().ToUpperInvariant();
+                string quote = String.IsNullOrWhiteSpace(item.QuoteCurrency) ? "USD" : item.QuoteCurrency.Trim().ToUpperInvariant();
+                string dataId = AlternativeMeDataId(symbol);
+                item.Symbol = symbol;
+                item.QuoteCurrency = quote;
+                if (String.IsNullOrWhiteSpace(item.Id))
+                {
+                    item.Id = symbol.ToLowerInvariant();
+                }
+
+                if (String.IsNullOrWhiteSpace(item.Name))
+                {
+                    item.Name = symbol;
+                }
+
+                if (dataId.Length > 0)
+                {
+                    item.Url = "https://api.alternative.me/v2/ticker/?convert=" + quote + "&limit=10";
+                    item.Method = "GET";
+                    item.Template = symbol + " ${$.data." + dataId + ".quotes." + quote + ".price:0.00} (${$.data." + dataId + ".quotes." + quote + ".percentage_change_24h:0.00}%)";
+                }
+
+                return;
+            }
+
+            if (item.Type == ApiItemConfig.TypeExchangeRate)
+            {
+                string baseCurrency = String.IsNullOrWhiteSpace(item.BaseCurrency) ? "USD" : item.BaseCurrency.Trim().ToUpperInvariant();
+                string quoteCurrency = String.IsNullOrWhiteSpace(item.QuoteCurrency) ? "CNY" : item.QuoteCurrency.Trim().ToUpperInvariant();
+                item.BaseCurrency = baseCurrency;
+                item.QuoteCurrency = quoteCurrency;
+                if (String.IsNullOrWhiteSpace(item.Id))
+                {
+                    item.Id = (baseCurrency + "-" + quoteCurrency).ToLowerInvariant();
+                }
+
+                if (String.IsNullOrWhiteSpace(item.Name))
+                {
+                    item.Name = baseCurrency + "/" + quoteCurrency;
+                }
+
+                item.Url = "https://open.er-api.com/v6/latest/" + baseCurrency;
+                item.Method = "GET";
+                item.Template = baseCurrency + "/" + quoteCurrency + " ${$.rates." + quoteCurrency + ":0.0000}";
+                return;
+            }
+
+            if (item.Type == ApiItemConfig.TypeHttpStatus)
+            {
+                if (String.IsNullOrWhiteSpace(item.Name))
+                {
+                    item.Name = "Website";
+                }
+
+                item.Method = "GET";
+                item.Template = "";
+            }
         }
 
         public string[] GetSymbols()
@@ -475,6 +552,11 @@ namespace CryptoMonitor
             }
 
             ApiItemConfig item = new ApiItemConfig();
+            bool hasType = root.ContainsKey("type");
+            item.Type = ApiItemConfig.NormalizeType(GetString(root, "type", item.Type));
+            item.Symbol = GetString(root, "symbol", item.Symbol);
+            item.BaseCurrency = GetString(root, "baseCurrency", item.BaseCurrency);
+            item.QuoteCurrency = GetString(root, "quoteCurrency", item.QuoteCurrency);
             item.Id = GetString(root, "id", item.Id);
             item.Name = GetString(root, "name", item.Name);
             item.Enabled = GetBool(root, "enabled", item.Enabled);
@@ -487,10 +569,65 @@ namespace CryptoMonitor
             item.TimeoutSeconds = ClampOptionalTiming(GetInt(root, "timeoutSeconds", item.TimeoutSeconds), 3, 120);
             item.Headers = ReadHeaders(root);
 
-            if (item.Url.Length > 0)
+            if (!hasType)
+            {
+                UpgradeLegacyKnownCoinItem(item);
+            }
+
+            ApplyItemTypeDefaults(item);
+
+            if (item.Url.Length > 0 || item.Type == ApiItemConfig.TypeHttpStatus)
             {
                 items.Add(item);
             }
+        }
+
+        private static void UpgradeLegacyKnownCoinItem(ApiItemConfig item)
+        {
+            if (item == null || String.IsNullOrWhiteSpace(item.Url))
+            {
+                return;
+            }
+
+            if (item.Url.IndexOf("api.alternative.me/v2/ticker", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return;
+            }
+
+            string symbol = String.IsNullOrWhiteSpace(item.Name) ? item.Id : item.Name;
+            symbol = String.IsNullOrWhiteSpace(symbol) ? "" : symbol.Trim().ToUpperInvariant();
+            if (AlternativeMeDataId(symbol).Length == 0)
+            {
+                return;
+            }
+
+            item.Type = ApiItemConfig.TypeCoin;
+            item.Symbol = symbol;
+            item.QuoteCurrency = ExtractQuoteCurrency(item.Template, "USD");
+        }
+
+        private static string ExtractQuoteCurrency(string template, string fallback)
+        {
+            if (String.IsNullOrWhiteSpace(template))
+            {
+                return fallback;
+            }
+
+            string marker = ".quotes.";
+            int start = template.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (start < 0)
+            {
+                return fallback;
+            }
+
+            start += marker.Length;
+            int end = start;
+            while (end < template.Length && Char.IsLetter(template[end]))
+            {
+                end++;
+            }
+
+            return end > start ? template.Substring(start, end - start).ToUpperInvariant() : fallback;
         }
 
         private static Dictionary<string, string> ReadHeaders(Dictionary<string, object> root)
@@ -769,6 +906,15 @@ namespace CryptoMonitor
 
     internal sealed class ApiItemConfig
     {
+        public const string TypeCustomApi = "customApi";
+        public const string TypeCoin = "coin";
+        public const string TypeExchangeRate = "exchangeRate";
+        public const string TypeHttpStatus = "httpStatus";
+
+        public string Type;
+        public string Symbol;
+        public string BaseCurrency;
+        public string QuoteCurrency;
         public string Id;
         public string Name;
         public bool Enabled;
@@ -782,6 +928,10 @@ namespace CryptoMonitor
 
         public ApiItemConfig()
         {
+            Type = TypeCustomApi;
+            Symbol = "";
+            BaseCurrency = "";
+            QuoteCurrency = "USD";
             Id = "";
             Name = "";
             Enabled = true;
@@ -824,9 +974,51 @@ namespace CryptoMonitor
             return "Item " + (index + 1).ToString();
         }
 
+        public static string NormalizeType(string type)
+        {
+            if (String.IsNullOrWhiteSpace(type))
+            {
+                return TypeCustomApi;
+            }
+
+            string value = type.Trim();
+            if (String.Equals(value, TypeCoin, StringComparison.OrdinalIgnoreCase))
+            {
+                return TypeCoin;
+            }
+
+            if (String.Equals(value, TypeExchangeRate, StringComparison.OrdinalIgnoreCase))
+            {
+                return TypeExchangeRate;
+            }
+
+            if (String.Equals(value, TypeHttpStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                return TypeHttpStatus;
+            }
+
+            return TypeCustomApi;
+        }
+
         public Dictionary<string, object> ToDictionary()
         {
             Dictionary<string, object> root = new Dictionary<string, object>();
+            root["type"] = NormalizeType(Type);
+            if (!String.IsNullOrWhiteSpace(Symbol))
+            {
+                root["symbol"] = Symbol;
+            }
+
+            if (!String.IsNullOrWhiteSpace(BaseCurrency))
+            {
+                root["baseCurrency"] = BaseCurrency;
+            }
+
+            if (!String.IsNullOrWhiteSpace(QuoteCurrency))
+            {
+                root["quoteCurrency"] = QuoteCurrency;
+            }
+
             root["id"] = Id;
             root["name"] = Name;
             root["enabled"] = Enabled;

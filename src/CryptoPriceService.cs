@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -82,8 +83,8 @@ namespace CryptoMonitor
                 {
                     try
                     {
-                        string response = Download(item, config.RequestTimeoutSeconds);
-                        string text = JsonTemplateRenderer.Render(response, item.Template);
+                        string rawResponse;
+                        string text = RenderItem(item, config.RequestTimeoutSeconds, out rawResponse);
                         cached = new CachedApiItem();
                         cached.Text = text;
                         cached.LastFetched = now;
@@ -118,6 +119,64 @@ namespace CryptoMonitor
             return RenderDisplayTemplate(config.DisplayTemplate, joinedItems, parts.Count, now);
         }
 
+        internal static string RenderItem(ApiItemConfig item, int fallbackTimeoutSeconds, out string rawResponse)
+        {
+            rawResponse = "";
+            if (item == null)
+            {
+                return "--";
+            }
+
+            AppConfig.ApplyItemTypeDefaults(item);
+            if (item.Type == ApiItemConfig.TypeHttpStatus)
+            {
+                return RenderHttpStatus(item, fallbackTimeoutSeconds, out rawResponse);
+            }
+
+            rawResponse = Download(item, fallbackTimeoutSeconds);
+            return JsonTemplateRenderer.Render(rawResponse, AppConfig.DecodeTextEscapes(item.Template));
+        }
+
+        private static string RenderHttpStatus(ApiItemConfig item, int fallbackTimeoutSeconds, out string rawResponse)
+        {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+            int timeoutSeconds = item.TimeoutSeconds > 0 ? item.TimeoutSeconds : fallbackTimeoutSeconds;
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(item.Url);
+                request.Method = "GET";
+                request.Timeout = timeoutSeconds * 1000;
+                request.ReadWriteTimeout = timeoutSeconds * 1000;
+                request.UserAgent = "CryptoMonitor/0.1";
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                {
+                    stopwatch.Stop();
+                    rawResponse = ((int)response.StatusCode).ToString() + " " + response.StatusDescription + " in " + stopwatch.ElapsedMilliseconds.ToString() + " ms";
+                    return item.DisplayName(0) + " OK " + stopwatch.ElapsedMilliseconds.ToString() + "ms";
+                }
+            }
+            catch (WebException ex)
+            {
+                stopwatch.Stop();
+                HttpWebResponse response = ex.Response as HttpWebResponse;
+                if (response != null)
+                {
+                    rawResponse = ((int)response.StatusCode).ToString() + " " + response.StatusDescription + " in " + stopwatch.ElapsedMilliseconds.ToString() + " ms";
+                    return item.DisplayName(0) + " ERR " + ((int)response.StatusCode).ToString();
+                }
+
+                rawResponse = ex.Message;
+                return item.DisplayName(0) + " ERR";
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+                rawResponse = ex.Message;
+                return item.DisplayName(0) + " ERR";
+            }
+        }
+
         private static string RenderDisplayTemplate(string template, string items, int count, DateTime now)
         {
             if (String.IsNullOrEmpty(template))
@@ -125,7 +184,7 @@ namespace CryptoMonitor
                 return items;
             }
 
-            return template
+            return AppConfig.DecodeTextEscapes(template)
                 .Replace("{items}", items)
                 .Replace("{count}", count.ToString())
                 .Replace("{date}", now.ToString("yyyy-MM-dd"))

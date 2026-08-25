@@ -30,6 +30,7 @@ namespace CryptoMonitor
         private Color displayColor = Color.Black;
         private Color windowBackgroundColor = Color.White;
         private bool windowBackgroundTransparent = true;
+        private bool windowTextWrap;
         private int fixedWidth;
         private int minWidth = 260;
         private int maxWidth = 520;
@@ -173,6 +174,7 @@ namespace CryptoMonitor
             Font = CreateDisplayFont(config);
             windowBackgroundColor = ParseColor(config.WindowBackgroundColor, Color.White);
             windowBackgroundTransparent = config.WindowBackgroundTransparent;
+            windowTextWrap = config.WindowTextWrap;
             ResizeToText();
             ApplyInitialWindowPosition();
 
@@ -506,19 +508,39 @@ namespace CryptoMonitor
 
         private void ResizeToText()
         {
-            int textWidth;
-            int textHeight;
+            int targetWidth;
+            int targetHeight;
             using (Bitmap bitmap = new Bitmap(1, 1))
             using (Graphics graphics = Graphics.FromImage(bitmap))
             {
                 graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-                SizeF size = graphics.MeasureString(displayText, Font, Int32.MaxValue, StringFormat.GenericTypographic);
-                textWidth = (int)Math.Ceiling(size.Width);
-                textHeight = (int)Math.Ceiling(size.Height);
+                using (StringFormat singleLineFormat = CreateDisplayStringFormat(false))
+                {
+                    SizeF singleLineSize = graphics.MeasureString(displayText, Font, Int32.MaxValue, singleLineFormat);
+                    int singleLineWidth = (int)Math.Ceiling(singleLineSize.Width);
+
+                    targetWidth = fixedWidth > 0
+                        ? fixedWidth
+                        : Math.Max(minWidth, Math.Min(maxWidth, singleLineWidth + Padding.Horizontal + 8));
+
+                    if (windowTextWrap)
+                    {
+                        int textAreaWidth = Math.Max(1, targetWidth - Padding.Horizontal);
+                        using (StringFormat wrapFormat = CreateDisplayStringFormat(true))
+                        {
+                            SizeF wrappedSize = graphics.MeasureString(displayText, Font, new SizeF(textAreaWidth, 10000F), wrapFormat);
+                            targetHeight = (int)Math.Ceiling(wrappedSize.Height);
+                        }
+                    }
+                    else
+                    {
+                        targetHeight = (int)Math.Ceiling(singleLineSize.Height);
+                    }
+                }
             }
 
-            Width = fixedWidth > 0 ? fixedWidth : Math.Max(minWidth, Math.Min(maxWidth, textWidth + Padding.Horizontal + 8));
-            Height = Math.Max(28, textHeight + Padding.Vertical + 4);
+            Width = targetWidth;
+            Height = Math.Max(28, targetHeight + Padding.Vertical + 4);
         }
 
         private void RenderLayeredWindow()
@@ -551,14 +573,9 @@ namespace CryptoMonitor
                         }
                     }
 
-                    using (StringFormat format = new StringFormat(StringFormat.GenericTypographic))
+                    using (StringFormat format = CreateDisplayStringFormat(windowTextWrap))
                     using (Brush brush = new SolidBrush(displayColor))
                     {
-                        format.Alignment = StringAlignment.Center;
-                        format.LineAlignment = StringAlignment.Center;
-                        format.FormatFlags |= StringFormatFlags.NoWrap;
-                        format.Trimming = StringTrimming.EllipsisCharacter;
-
                         RectangleF rect = new RectangleF(
                             Padding.Left,
                             Padding.Top,
@@ -617,6 +634,20 @@ namespace CryptoMonitor
             }
 
             return text.Substring(0, 60) + "...";
+        }
+
+        private static StringFormat CreateDisplayStringFormat(bool wrap)
+        {
+            StringFormat format = new StringFormat(StringFormat.GenericTypographic);
+            format.Alignment = StringAlignment.Center;
+            format.LineAlignment = StringAlignment.Center;
+            format.Trimming = wrap ? StringTrimming.None : StringTrimming.EllipsisCharacter;
+            if (!wrap)
+            {
+                format.FormatFlags |= StringFormatFlags.NoWrap;
+            }
+
+            return format;
         }
 
         private static int Clamp(int value, int min, int max)

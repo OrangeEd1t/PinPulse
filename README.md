@@ -41,7 +41,7 @@ In Settings:
 - `Window`: automatic/fixed width and text appearance.
 - `Monitor Items`: add a blank item or a request template, enable/disable items, edit URL/method/headers/body, set display text, copy/delete/reorder items, and test a single item before saving.
 
-Most users only need the `Monitor Items` tab: choose `GET JSON` or `Blank`, fill in the request URL and display template, click `Test`, then Save.
+Most users only need the `Monitor Items` tab: choose a data card type such as coin price, exchange rate, or website status, fill in the simple field such as `BTC`, `USD/CNY`, or `https://example.com`, click `Test`, then Save. Advanced users can still choose `Custom API` and edit URL, method, headers, body, and JSONPath display text directly.
 
 ## Configuration
 
@@ -81,12 +81,12 @@ Example:
 
 The default BTC/ETH display is only an example. Every monitor entry uses the same generic `items` structure, so the Settings window can be used for crypto prices, market indicators, service health, build status, weather, or any JSON API that can be rendered with a template. This follows the same idea as TrafficMonitor plugins such as TMFetchPlugin: each item owns its URL, request options, refresh interval, and display template.
 
-The Settings window includes these item templates:
+The Settings window groups item templates by use case:
 
-- `GET JSON`: starts a generic GET request with an `Accept: application/json` header.
-- `POST JSON`: starts a JSON POST request with an editable request body.
-- `Fear & Greed` and `BTC price`: ready-to-edit examples, not special cases.
-- `Blank`: creates a minimal custom item.
+- `Market: BTC price`, `Market: USD/CNY rate`, and `Market: Fear & Greed index`: ready-to-edit market examples.
+- `Service: Website status`: checks a website and renders status/latency.
+- `API: GET JSON` and `API: POST JSON`: generic JSON request starters.
+- `Blank item`: creates a minimal custom item.
 
 Another item example:
 
@@ -108,6 +108,9 @@ Another item example:
 
 Item fields:
 
+- `type`: item type. Supported values are `coin`, `exchangeRate`, `httpStatus`, and `customApi`. Older items without `type` are treated as `customApi`.
+- `symbol`: coin symbol for `coin` items, such as `BTC`.
+- `baseCurrency` / `quoteCurrency`: currency pair fields for `exchangeRate` items.
 - `id`: stable item id, used for caching.
 - `name`: fallback display name when the item cannot be fetched.
 - `enabled`: set `false` to keep an item in config without showing it.

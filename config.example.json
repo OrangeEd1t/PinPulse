@@ -7,6 +7,9 @@
   "startWithWindows": false,
   "items": [
     {
+      "type": "coin",
+      "symbol": "BTC",
+      "quoteCurrency": "USD",
       "id": "btc",
       "name": "BTC",
       "enabled": true,
@@ -15,6 +18,9 @@
       "template": "BTC ${$.data.1.quotes.USD.price:0.00}"
     },
     {
+      "type": "coin",
+      "symbol": "ETH",
+      "quoteCurrency": "USD",
       "id": "eth",
       "name": "ETH",
       "enabled": true,
