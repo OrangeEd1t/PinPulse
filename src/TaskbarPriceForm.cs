@@ -333,13 +333,9 @@ namespace CryptoMonitor
             {
                 using (SettingsForm settings = new SettingsForm(config))
                 {
-                    if (settings.ShowDialog() == DialogResult.OK)
-                    {
-                        config.Save(appDir);
-                        SetMenu(BuildMenu());
-                        ApplyConfig(config);
-                        RefreshPrices();
-                    }
+                    settings.Saved += SettingsSaved;
+                    settings.ShowDialog();
+                    settings.Saved -= SettingsSaved;
                 }
             }
             finally
@@ -354,6 +350,15 @@ namespace CryptoMonitor
 
                 EnsureShown();
             }
+        }
+
+        private void SettingsSaved(object sender, EventArgs e)
+        {
+            config.Save(appDir);
+            SetMenu(BuildMenu());
+            ApplyConfig(config);
+            RefreshPrices();
+            RenderLayeredWindow();
         }
 
         private void EnsureTopMost()
@@ -379,11 +384,11 @@ namespace CryptoMonitor
             if (Visible)
             {
                 Hide();
+                return;
             }
-            else
-            {
-                EnsureShown();
-            }
+
+            Show();
+            EnsureShown();
         }
 
         private void OpenConfigFolder()
@@ -538,12 +543,12 @@ namespace CryptoMonitor
                     graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
                     graphics.ScaleTransform(renderScale, renderScale);
 
-                    Color fillColor = windowBackgroundTransparent
-                        ? Color.FromArgb(8, 0, 0, 0)
-                        : Color.FromArgb(255, windowBackgroundColor);
-                    using (Brush background = new SolidBrush(fillColor))
+                    if (!windowBackgroundTransparent)
                     {
-                        graphics.FillRectangle(background, 0, 0, Width, Height);
+                        using (Brush background = new SolidBrush(Color.FromArgb(255, windowBackgroundColor)))
+                        {
+                            graphics.FillRectangle(background, 0, 0, Width, Height);
+                        }
                     }
 
                     using (StringFormat format = new StringFormat(StringFormat.GenericTypographic))

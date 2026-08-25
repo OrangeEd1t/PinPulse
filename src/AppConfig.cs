@@ -270,11 +270,21 @@ namespace CryptoMonitor
             return items;
         }
 
+        public static string DecodeTextEscapes(string text)
+        {
+            if (text == null)
+            {
+                return "";
+            }
+
+            return text.Replace("\\r\\n", "\r\n").Replace("\\n", "\n").Replace("\\t", "\t");
+        }
+
         private static List<ApiItemConfig> CreateDefaultItems()
         {
             List<ApiItemConfig> items = new List<ApiItemConfig>();
-            items.Add(CreateAlternativeMeItem("BTC", "1", "USD", "https://api.alternative.me/v2/ticker/?convert=USD&limit=10", 300, 10));
-            items.Add(CreateAlternativeMeItem("ETH", "1027", "USD", "https://api.alternative.me/v2/ticker/?convert=USD&limit=10", 300, 10));
+            items.Add(CreateAlternativeMeItem("BTC", "1", "USD", "https://api.alternative.me/v2/ticker/?convert=USD&limit=10", 0, 0));
+            items.Add(CreateAlternativeMeItem("ETH", "1027", "USD", "https://api.alternative.me/v2/ticker/?convert=USD&limit=10", 0, 0));
             return items;
         }
 
@@ -287,7 +297,7 @@ namespace CryptoMonitor
                 string dataId = AlternativeMeDataId(symbols[i]);
                 if (dataId.Length > 0)
                 {
-                    items.Add(CreateAlternativeMeItem(symbols[i], dataId, config.Currency, config.ApiUrl, config.RefreshSeconds, config.RequestTimeoutSeconds));
+                    items.Add(CreateAlternativeMeItem(symbols[i], dataId, config.Currency, config.ApiUrl, 0, 0));
                 }
             }
 
@@ -473,8 +483,8 @@ namespace CryptoMonitor
             item.Body = GetString(root, "body", item.Body);
             item.Template = GetString(root, "template", item.Template);
             item.Template = GetString(root, "jsonPath", item.Template);
-            item.IntervalSeconds = Clamp(GetInt(root, "intervalSeconds", item.IntervalSeconds), 30, 86400);
-            item.TimeoutSeconds = Clamp(GetInt(root, "timeoutSeconds", item.TimeoutSeconds), 3, 120);
+            item.IntervalSeconds = ClampOptionalTiming(GetInt(root, "intervalSeconds", item.IntervalSeconds), 30, 86400);
+            item.TimeoutSeconds = ClampOptionalTiming(GetInt(root, "timeoutSeconds", item.TimeoutSeconds), 3, 120);
             item.Headers = ReadHeaders(root);
 
             if (item.Url.Length > 0)
@@ -653,6 +663,16 @@ namespace CryptoMonitor
             return value;
         }
 
+        private static int ClampOptionalTiming(int value, int min, int max)
+        {
+            if (value <= 0)
+            {
+                return 0;
+            }
+
+            return Clamp(value, min, max);
+        }
+
         private static string NormalizeAnchor(string anchor)
         {
             if (String.IsNullOrEmpty(anchor))
@@ -770,8 +790,8 @@ namespace CryptoMonitor
             Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             Body = "";
             Template = "";
-            IntervalSeconds = 300;
-            TimeoutSeconds = 10;
+            IntervalSeconds = 0;
+            TimeoutSeconds = 0;
         }
 
         public string EffectiveId(int index)
@@ -824,8 +844,15 @@ namespace CryptoMonitor
             }
             root["body"] = Body;
             root["template"] = Template;
-            root["intervalSeconds"] = IntervalSeconds;
-            root["timeoutSeconds"] = TimeoutSeconds;
+            if (IntervalSeconds > 0)
+            {
+                root["intervalSeconds"] = IntervalSeconds;
+            }
+
+            if (TimeoutSeconds > 0)
+            {
+                root["timeoutSeconds"] = TimeoutSeconds;
+            }
             return root;
         }
     }

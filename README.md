@@ -37,7 +37,7 @@ Right-click the price text to refresh, open Settings, open the config folder, or
 
 In Settings:
 
-- `General`: language, startup option, refresh/timeout defaults, and overall display text.
+- `General`: language, startup option, default refresh/timeout values, and overall display text.
 - `Window`: automatic/fixed width and text appearance.
 - `Monitor Items`: add a blank item or a request template, enable/disable items, edit URL/method/headers/body, set display text, copy/delete/reorder items, and test a single item before saving.
 
@@ -62,9 +62,7 @@ Example:
       "enabled": true,
       "url": "https://api.alternative.me/v2/ticker/?convert=USD&limit=10",
       "method": "GET",
-      "template": "BTC ${$.data.1.quotes.USD.price:0.00}",
-      "intervalSeconds": 300,
-      "timeoutSeconds": 10
+      "template": "BTC ${$.data.1.quotes.USD.price:0.00}"
     },
     {
       "id": "eth",
@@ -72,9 +70,7 @@ Example:
       "enabled": true,
       "url": "https://api.alternative.me/v2/ticker/?convert=USD&limit=10",
       "method": "GET",
-      "template": "ETH ${$.data.1027.quotes.USD.price:0.00}",
-      "intervalSeconds": 300,
-      "timeoutSeconds": 10
+      "template": "ETH ${$.data.1027.quotes.USD.price:0.00}"
     }
   ],
   "windowFixedWidth": 0,
@@ -120,8 +116,8 @@ Item fields:
 - `headers`: request headers as key/value pairs.
 - `body`: optional UTF-8 request body for non-GET requests.
 - `template`: free text with JSONPath placeholders. `jsonPath` is also accepted as an alias for TMFetchPlugin-style configs.
-- `intervalSeconds`: item refresh interval. The app timer uses the shortest enabled interval, with a minimum of 30 seconds.
-- `timeoutSeconds`: item request timeout.
+- `intervalSeconds`: optional item refresh interval. Omit it, or set it to `0`, to use the General refresh interval. The app timer uses the shortest enabled effective interval, with a minimum of 30 seconds.
+- `timeoutSeconds`: optional item request timeout. Omit it, or set it to `0`, to use the General timeout.
 
 Template syntax:
 

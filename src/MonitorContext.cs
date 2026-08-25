@@ -225,14 +225,18 @@ namespace CryptoMonitor
         {
             using (SettingsForm settings = new SettingsForm(config))
             {
-                if (settings.ShowDialog() == DialogResult.OK)
-                {
-                    config.Save(appDir);
-                    SetMenus();
-                    ApplyConfig();
-                    RefreshPrices();
-                }
+                settings.Saved += SettingsSaved;
+                settings.ShowDialog();
+                settings.Saved -= SettingsSaved;
             }
+        }
+
+        private void SettingsSaved(object sender, EventArgs e)
+        {
+            config.Save(appDir);
+            SetMenus();
+            ApplyConfig();
+            RefreshPrices();
         }
 
         private void ToggleTaskbarWindow()

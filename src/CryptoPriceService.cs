@@ -114,7 +114,7 @@ namespace CryptoMonitor
                 throw new InvalidOperationException(Localization.Text(config, "ApiResponseNoItems"));
             }
 
-            string joinedItems = String.Join(config.ItemSeparator, parts.ToArray());
+            string joinedItems = String.Join(AppConfig.DecodeTextEscapes(config.ItemSeparator), parts.ToArray());
             return RenderDisplayTemplate(config.DisplayTemplate, joinedItems, parts.Count, now);
         }
 

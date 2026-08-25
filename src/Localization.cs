@@ -27,8 +27,19 @@ namespace CryptoMonitor
             EnglishText["Currency"] = "Currency";
             EnglishText["RefreshSeconds"] = "Refresh interval";
             EnglishText["TimeoutSeconds"] = "Timeout";
+            EnglishText["DisplayFormat"] = "Display format";
+            EnglishText["DisplayFormatSimple"] = "Items only";
+            EnglishText["DisplayFormatWithTime"] = "Time + items";
+            EnglishText["DisplayFormatWithDateTime"] = "Date/time + items";
+            EnglishText["DisplayFormatWithCount"] = "Items + count";
+            EnglishText["DisplayFormatCustom"] = "Custom";
+            EnglishText["DisplayPreview"] = "Preview:";
             EnglishText["DisplayTemplate"] = "Display template";
-            EnglishText["DisplayTemplateHint"] = "Use {items} for all enabled items. You can also add {time}, {date}, or {count}.";
+            EnglishText["DisplayTemplateHint"] = "Advanced: click a field button to insert it, or edit the template directly.";
+            EnglishText["TokenItems"] = "Items";
+            EnglishText["TokenTime"] = "Time";
+            EnglishText["TokenDate"] = "Date";
+            EnglishText["TokenCount"] = "Count";
             EnglishText["ItemSeparator"] = "Item separator";
             EnglishText["ItemSeparatorHint"] = "For example: spaces, a vertical bar, or a line break.";
             EnglishText["StartWithWindows"] = "Start with Windows";
@@ -40,10 +51,14 @@ namespace CryptoMonitor
             EnglishText["TaskbarOffsetY"] = "Vertical offset";
             EnglishText["TaskbarOffsetHint"] = "Positive values move right or down. Negative values move the other way.";
             EnglishText["TaskbarWidth"] = "Window width";
-            EnglishText["TaskbarFixedWidth"] = "Fixed width (0 = auto)";
-            EnglishText["TaskbarMinWidth"] = "Min auto width";
-            EnglishText["TaskbarMaxWidth"] = "Max auto width";
-            EnglishText["TaskbarWidthHint"] = "Set fixed width to 0 to let the floating window resize to the text.";
+            EnglishText["TaskbarWidthAutoMode"] = "Auto width";
+            EnglishText["TaskbarWidthFixedMode"] = "Fixed width";
+            EnglishText["TaskbarFixedWidth"] = "Width";
+            EnglishText["TaskbarMinWidth"] = "Min width";
+            EnglishText["TaskbarMaxWidth"] = "Max width";
+            EnglishText["TaskbarWidthHint"] = "Choose how the floating window width is calculated.";
+            EnglishText["TaskbarAutoWidthHint"] = "The window follows the text length, constrained by the min and max width.";
+            EnglishText["TaskbarFixedWidthHint"] = "The window always uses this width, regardless of text length.";
             EnglishText["TaskbarAppearance"] = "Window appearance";
             EnglishText["TaskbarFontFamily"] = "Font";
             EnglishText["TaskbarFontSize"] = "Size";
@@ -66,6 +81,7 @@ namespace CryptoMonitor
             EnglishText["ItemMethod"] = "Method";
             EnglishText["ItemTemplate"] = "Display text";
             EnglishText["ItemTemplateHint"] = "Use JSONPath placeholders such as ${$.price:0.00}, $.data[0].value, or $..value.";
+            EnglishText["ItemUseGlobalTiming"] = "Use General refresh and timeout";
             EnglishText["ItemInterval"] = "Refresh interval";
             EnglishText["ItemTimeout"] = "Timeout";
             EnglishText["UnitSeconds"] = "sec";
@@ -91,6 +107,7 @@ namespace CryptoMonitor
             EnglishText["ValidationApiItemsInvalid"] = "API Items JSON is invalid.";
             EnglishText["ValidationApiItemsRequired"] = "Enable at least one API item.";
             EnglishText["ValidationHeadersInvalid"] = "Headers are invalid. Use the format Name: Value.";
+            EnglishText["ValidationDisplayTemplateItemsRequired"] = "Display template must include the Items field.";
             EnglishText["StartupUpdateFailed"] = "Could not update Windows startup setting.";
             EnglishText["MenuShowHide"] = "Show / Hide";
             EnglishText["MenuRefreshNow"] = "Refresh now";
@@ -131,10 +148,14 @@ namespace CryptoMonitor
             ChineseText["TaskbarOffsetY"] = "垂直偏移";
             ChineseText["TaskbarOffsetHint"] = "数值越大越向右或向下，负数反向移动。";
             ChineseText["TaskbarWidth"] = "窗口宽度";
-            ChineseText["TaskbarFixedWidth"] = "\u56fa\u5b9a\u5bbd\u5ea6(0=\u81ea\u52a8)";
-            ChineseText["TaskbarMinWidth"] = "\u81ea\u52a8\u6700\u5c0f\u5bbd\u5ea6";
-            ChineseText["TaskbarMaxWidth"] = "\u81ea\u52a8\u6700\u5927\u5bbd\u5ea6";
-            ChineseText["TaskbarWidthHint"] = "固定宽度为 0 时，悬浮窗口会根据文字自动伸缩。";
+            ChineseText["TaskbarWidthAutoMode"] = "自动宽度";
+            ChineseText["TaskbarWidthFixedMode"] = "固定宽度";
+            ChineseText["TaskbarFixedWidth"] = "宽度";
+            ChineseText["TaskbarMinWidth"] = "最小宽度";
+            ChineseText["TaskbarMaxWidth"] = "最大宽度";
+            ChineseText["TaskbarWidthHint"] = "选择悬浮窗口宽度的计算方式。";
+            ChineseText["TaskbarAutoWidthHint"] = "窗口会跟随文字长度自动伸缩，并限制在最小和最大宽度之间。";
+            ChineseText["TaskbarFixedWidthHint"] = "窗口始终使用这个宽度，不随文字长度变化。";
             ChineseText["TaskbarAppearance"] = "窗口外观";
             ChineseText["TaskbarFontFamily"] = "\u5b57\u4f53";
             ChineseText["TaskbarFontSize"] = "\u5b57\u53f7";
@@ -157,6 +178,7 @@ namespace CryptoMonitor
             ChineseText["ItemMethod"] = "方法";
             ChineseText["ItemTemplate"] = "显示内容";
             ChineseText["ItemTemplateHint"] = "使用 JSONPath 占位符，如 ${$.price:0.00}、$.data[0].value 或 $..value。";
+            ChineseText["ItemUseGlobalTiming"] = "使用通用刷新和超时设置";
             ChineseText["ItemInterval"] = "刷新间隔";
             ChineseText["ItemTimeout"] = "超时";
             ChineseText["UnitSeconds"] = "\u79d2";
@@ -195,6 +217,20 @@ namespace CryptoMonitor
             ChineseText["ApiResponseNoData"] = "API \u54cd\u5e94\u4e0d\u5305\u542b data \u5b57\u6bb5\u3002";
             ChineseText["ApiResponseNoSymbols"] = "API \u54cd\u5e94\u4e2d\u6ca1\u6709\u627e\u5230\u5df2\u914d\u7f6e\u7684\u5e01\u79cd\u3002";
             ChineseText["ApiResponseNoItems"] = "\u6ca1\u6709\u627e\u5230\u5df2\u542f\u7528\u7684 API \u9879\u3002";
+
+            ChineseText["DisplayFormat"] = "\u663e\u793a\u683c\u5f0f";
+            ChineseText["DisplayFormatSimple"] = "\u4ec5\u663e\u793a\u76d1\u63a7\u9879";
+            ChineseText["DisplayFormatWithTime"] = "\u65f6\u95f4 + \u76d1\u63a7\u9879";
+            ChineseText["DisplayFormatWithDateTime"] = "\u65e5\u671f\u65f6\u95f4 + \u76d1\u63a7\u9879";
+            ChineseText["DisplayFormatWithCount"] = "\u76d1\u63a7\u9879 + \u6570\u91cf";
+            ChineseText["DisplayFormatCustom"] = "\u81ea\u5b9a\u4e49";
+            ChineseText["DisplayPreview"] = "\u9884\u89c8\uff1a";
+            ChineseText["DisplayTemplateHint"] = "\u9ad8\u7ea7\uff1a\u70b9\u51fb\u5b57\u6bb5\u6309\u94ae\u63d2\u5165\uff0c\u4e5f\u53ef\u76f4\u63a5\u7f16\u8f91\u6a21\u677f\u3002";
+            ChineseText["TokenItems"] = "\u76d1\u63a7\u9879";
+            ChineseText["TokenTime"] = "\u65f6\u95f4";
+            ChineseText["TokenDate"] = "\u65e5\u671f";
+            ChineseText["TokenCount"] = "\u6570\u91cf";
+            ChineseText["ValidationDisplayTemplateItemsRequired"] = "\u663e\u793a\u6a21\u677f\u9700\u8981\u5305\u542b\u201c\u76d1\u63a7\u9879\u201d\u5b57\u6bb5\u3002";
         }
 
         public static string DefaultLanguage()

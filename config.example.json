@@ -12,9 +12,7 @@
       "enabled": true,
       "url": "https://api.alternative.me/v2/ticker/?convert=USD&limit=10",
       "method": "GET",
-      "template": "BTC ${$.data.1.quotes.USD.price:0.00}",
-      "intervalSeconds": 300,
-      "timeoutSeconds": 10
+      "template": "BTC ${$.data.1.quotes.USD.price:0.00}"
     },
     {
       "id": "eth",
@@ -22,9 +20,7 @@
       "enabled": true,
       "url": "https://api.alternative.me/v2/ticker/?convert=USD&limit=10",
       "method": "GET",
-      "template": "ETH ${$.data.1027.quotes.USD.price:0.00}",
-      "intervalSeconds": 300,
-      "timeoutSeconds": 10
+      "template": "ETH ${$.data.1027.quotes.USD.price:0.00}"
     }
   ],
   "windowFixedWidth": 0,
