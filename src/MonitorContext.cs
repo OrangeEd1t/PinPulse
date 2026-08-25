@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -25,7 +26,7 @@ namespace CryptoMonitor
             priceService = new CryptoPriceService();
             priceForm = new TaskbarPriceForm();
             notifyIcon = new NotifyIcon();
-            notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+            notifyIcon.Icon = LoadAppIcon();
             notifyIcon.Text = "CryptoMonitor";
             notifyIcon.Visible = true;
             notifyIcon.DoubleClick += delegate { ShowSettings(); };
@@ -271,6 +272,23 @@ namespace CryptoMonitor
             }
 
             return text.Substring(0, 60) + "...";
+        }
+
+        private static Icon LoadAppIcon()
+        {
+            try
+            {
+                Icon icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (icon != null)
+                {
+                    return icon;
+                }
+            }
+            catch
+            {
+            }
+
+            return SystemIcons.Application;
         }
     }
 }

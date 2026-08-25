@@ -81,7 +81,7 @@ namespace CryptoMonitor
             };
 
             notifyIcon = new NotifyIcon();
-            notifyIcon.Icon = SystemIcons.Application;
+            notifyIcon.Icon = LoadAppIcon();
             notifyIcon.Text = "CryptoMonitor";
             notifyIcon.Visible = appDir != null;
             notifyIcon.DoubleClick += delegate { ShowSettings(); };
@@ -663,6 +663,23 @@ namespace CryptoMonitor
             {
                 return fallback;
             }
+        }
+
+        private static Icon LoadAppIcon()
+        {
+            try
+            {
+                Icon icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (icon != null)
+                {
+                    return icon;
+                }
+            }
+            catch
+            {
+            }
+
+            return SystemIcons.Application;
         }
 
         protected override void WndProc(ref Message m)
