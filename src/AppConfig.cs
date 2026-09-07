@@ -8,6 +8,9 @@ namespace CryptoMonitor
 {
     internal sealed class AppConfig
     {
+        public const int MinRefreshSeconds = 1;
+        public const int MaxRefreshSeconds = 86400;
+
         public string ApiUrl;
         public string Language;
         public string Currency;
@@ -90,7 +93,7 @@ namespace CryptoMonitor
                 config.ApiUrl = GetString(root, "apiUrl", config.ApiUrl);
                 config.Language = Localization.NormalizeLanguage(GetString(root, "language", config.Language));
                 config.Currency = GetString(root, "currency", config.Currency).ToUpperInvariant();
-                config.RefreshSeconds = Clamp(GetInt(root, "refreshSeconds", config.RefreshSeconds), 30, 86400);
+                config.RefreshSeconds = Clamp(GetInt(root, "refreshSeconds", config.RefreshSeconds), MinRefreshSeconds, MaxRefreshSeconds);
                 config.RequestTimeoutSeconds = Clamp(GetInt(root, "requestTimeoutSeconds", config.RequestTimeoutSeconds), 3, 120);
                 config.DisplayTemplate = GetString(root, "displayTemplate", config.DisplayTemplate);
                 config.ItemSeparator = GetString(root, "itemSeparator", config.ItemSeparator);
@@ -475,7 +478,7 @@ namespace CryptoMonitor
                 }
             }
 
-            return Clamp(seconds, 30, 86400);
+            return Clamp(seconds, MinRefreshSeconds, MaxRefreshSeconds);
         }
 
         public bool HasSavedWindowPosition()
@@ -565,7 +568,7 @@ namespace CryptoMonitor
             item.Body = GetString(root, "body", item.Body);
             item.Template = GetString(root, "template", item.Template);
             item.Template = GetString(root, "jsonPath", item.Template);
-            item.IntervalSeconds = ClampOptionalTiming(GetInt(root, "intervalSeconds", item.IntervalSeconds), 30, 86400);
+            item.IntervalSeconds = ClampOptionalTiming(GetInt(root, "intervalSeconds", item.IntervalSeconds), MinRefreshSeconds, MaxRefreshSeconds);
             item.TimeoutSeconds = ClampOptionalTiming(GetInt(root, "timeoutSeconds", item.TimeoutSeconds), 3, 120);
             item.Headers = ReadHeaders(root);
 

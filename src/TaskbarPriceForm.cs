@@ -23,6 +23,7 @@ namespace CryptoMonitor
         private bool isRefreshing;
         private bool isSettingsOpen;
         private bool isMenuOpen;
+        private bool isClosing;
         private bool dragging;
         private bool initialPositionApplied;
         private Point dragOffset;
@@ -118,6 +119,12 @@ namespace CryptoMonitor
             RenderLayeredWindow();
         }
 
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            isClosing = true;
+            base.OnFormClosing(e);
+        }
+
         protected override void OnLocationChanged(EventArgs e)
         {
             base.OnLocationChanged(e);
@@ -130,6 +137,7 @@ namespace CryptoMonitor
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
+            isClosing = true;
             refreshTimer.Stop();
             visibilityTimer.Stop();
             positionSaveTimer.Stop();
@@ -143,7 +151,7 @@ namespace CryptoMonitor
 
         public void SetText(string text, bool isError)
         {
-            if (IsDisposed)
+            if (IsDisposed || isClosing)
             {
                 return;
             }
@@ -179,7 +187,7 @@ namespace CryptoMonitor
             ApplyInitialWindowPosition();
 
             refreshTimer.Stop();
-            refreshTimer.Interval = Math.Max(30, config.GetPollIntervalSeconds()) * 1000;
+            refreshTimer.Interval = Math.Max(AppConfig.MinRefreshSeconds, config.GetPollIntervalSeconds()) * 1000;
             refreshTimer.Start();
             EnsureShown();
         }
@@ -205,7 +213,7 @@ namespace CryptoMonitor
 
         public void EnsureShown()
         {
-            if (IsDisposed || isSettingsOpen || isMenuOpen)
+            if (IsDisposed || isClosing || isSettingsOpen || isMenuOpen)
             {
                 return;
             }
@@ -269,41 +277,57 @@ namespace CryptoMonitor
 
         private void RefreshPrices()
         {
-            if (priceService == null || config == null || isRefreshing || IsDisposed)
+            if (priceService == null || config == null || isRefreshing || IsDisposed || isClosing)
             {
                 return;
             }
 
             isRefreshing = true;
-            SetText(Localization.Text(config, "Updating"), false);
             priceService.FetchAsync(config).ContinueWith(delegate(Task<string> task)
             {
-                if (IsDisposed || !IsHandleCreated)
+                if (IsDisposed || isClosing || !IsHandleCreated)
                 {
                     isRefreshing = false;
                     return;
                 }
 
-                BeginInvoke((MethodInvoker)delegate
+                try
                 {
-                    try
+                    BeginInvoke((MethodInvoker)delegate
                     {
-                        if (task.IsFaulted)
+                        try
                         {
-                            Exception ex = task.Exception == null ? null : task.Exception.GetBaseException();
-                            string message = ex == null ? Localization.Text(config, "UpdateFailed") : ex.Message;
-                            ShowError(message);
+                            if (IsDisposed || isClosing)
+                            {
+                                return;
+                            }
+
+                            if (task.IsFaulted)
+                            {
+                                Exception ex = task.Exception == null ? null : task.Exception.GetBaseException();
+                                string message = ex == null ? Localization.Text(config, "UpdateFailed") : ex.Message;
+                                ShowError(message);
+                            }
+                            else
+                            {
+                                ShowText(task.Result);
+                            }
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            ShowText(task.Result);
+                            Program.LogException(ex, "Refresh UI update failed");
                         }
-                    }
-                    finally
-                    {
-                        isRefreshing = false;
-                    }
-                });
+                        finally
+                        {
+                            isRefreshing = false;
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    isRefreshing = false;
+                    Program.LogException(ex, "Refresh callback could not reach UI");
+                }
             }, TaskScheduler.Default);
         }
 
@@ -545,6 +569,18 @@ namespace CryptoMonitor
 
         private void RenderLayeredWindow()
         {
+            try
+            {
+                RenderLayeredWindowCore();
+            }
+            catch (Exception ex)
+            {
+                Program.LogException(ex, "Layered window render failed");
+            }
+        }
+
+        private void RenderLayeredWindowCore()
+        {
             if (IsDisposed || !IsHandleCreated || Width <= 0 || Height <= 0)
             {
                 return;
@@ -601,11 +637,29 @@ namespace CryptoMonitor
                 }
 
                 IntPtr screenDc = GetDC(IntPtr.Zero);
-                IntPtr memoryDc = CreateCompatibleDC(screenDc);
-                IntPtr bitmapHandle = bitmap.GetHbitmap(Color.FromArgb(0));
-                IntPtr oldBitmap = SelectObject(memoryDc, bitmapHandle);
+                if (screenDc == IntPtr.Zero)
+                {
+                    return;
+                }
+
+                IntPtr memoryDc = IntPtr.Zero;
+                IntPtr bitmapHandle = IntPtr.Zero;
+                IntPtr oldBitmap = IntPtr.Zero;
                 try
                 {
+                    memoryDc = CreateCompatibleDC(screenDc);
+                    if (memoryDc == IntPtr.Zero)
+                    {
+                        return;
+                    }
+
+                    bitmapHandle = bitmap.GetHbitmap(Color.FromArgb(0));
+                    if (bitmapHandle == IntPtr.Zero)
+                    {
+                        return;
+                    }
+
+                    oldBitmap = SelectObject(memoryDc, bitmapHandle);
                     NativePoint topPos = new NativePoint(Left, Top);
                     NativeSize size = new NativeSize(Width, Height);
                     NativePoint source = new NativePoint(0, 0);
@@ -618,9 +672,21 @@ namespace CryptoMonitor
                 }
                 finally
                 {
-                    SelectObject(memoryDc, oldBitmap);
-                    DeleteObject(bitmapHandle);
-                    DeleteDC(memoryDc);
+                    if (memoryDc != IntPtr.Zero && oldBitmap != IntPtr.Zero)
+                    {
+                        SelectObject(memoryDc, oldBitmap);
+                    }
+
+                    if (bitmapHandle != IntPtr.Zero)
+                    {
+                        DeleteObject(bitmapHandle);
+                    }
+
+                    if (memoryDc != IntPtr.Zero)
+                    {
+                        DeleteDC(memoryDc);
+                    }
+
                     ReleaseDC(IntPtr.Zero, screenDc);
                 }
             }

@@ -1,6 +1,6 @@
 # CryptoMonitor
 
-A small Windows floating API data monitor.
+A small floating API data monitor for Windows and macOS.
 
 ## Features
 
@@ -8,12 +8,12 @@ A small Windows floating API data monitor.
 - Shows a transparent always-on-top price window that can be dragged anywhere on screen.
 - Provides refresh, settings, config folder, and exit commands from the price text right-click menu.
 - Supports Chinese and English UI text.
-- Provides a friendly settings window for common display, window, and monitor item changes.
+- Provides a friendly Windows settings window for common display, window, and monitor item changes.
 - Keeps `config.json` as an advanced editable configuration file.
 
-## Build
+## Build on Windows
 
-This first version targets .NET Framework and can be built with the Windows-bundled C# compiler:
+The Windows version targets .NET Framework and can be built with the Windows-bundled C# compiler:
 
 ```powershell
 .\build.ps1
@@ -25,13 +25,41 @@ The output is:
 CryptoMonitor.exe
 ```
 
-## Run
+## Run on Windows
 
 ```powershell
 .\CryptoMonitor.exe
 ```
 
 On first run, the app creates `config.json` next to the executable.
+
+## Build on macOS
+
+The macOS version is an AppKit menu bar app with an always-on-top floating window. Build it on macOS with:
+
+```bash
+bash macos/build.sh
+```
+
+The output is:
+
+```text
+dist/macos/CryptoMonitor.app
+```
+
+Run it with Finder or:
+
+```bash
+open dist/macos/CryptoMonitor.app
+```
+
+On first run, the macOS app creates its config at:
+
+```text
+~/Library/Application Support/CryptoMonitor/config.json
+```
+
+The macOS status bar menu can refresh, show or hide the floating window, open/reload the config, toggle login startup, and exit. The config schema is shared with the Windows version, including `items`, `displayTemplate`, `itemSeparator`, `windowFixedWidth`, `windowMinWidth`, `windowMaxWidth`, font, wrapping, background, and `startWithWindows`.
 
 Right-click the price text to refresh, open Settings, open the config folder, or exit.
 
@@ -119,7 +147,7 @@ Item fields:
 - `headers`: request headers as key/value pairs.
 - `body`: optional UTF-8 request body for non-GET requests.
 - `template`: free text with JSONPath placeholders. `jsonPath` is also accepted as an alias for TMFetchPlugin-style configs.
-- `intervalSeconds`: optional item refresh interval. Omit it, or set it to `0`, to use the General refresh interval. The app timer uses the shortest enabled effective interval, with a minimum of 30 seconds.
+- `intervalSeconds`: optional item refresh interval. Omit it, or set it to `0`, to use the General refresh interval. The app timer uses the shortest enabled effective interval, with a minimum of 1 second.
 - `timeoutSeconds`: optional item request timeout. Omit it, or set it to `0`, to use the General timeout.
 
 Template syntax:
@@ -141,7 +169,7 @@ Overall display format:
 - `{date}` inserts the current date as `yyyy-MM-dd`.
 - `{time}` inserts the current time as `HH:mm:ss`.
 - `itemSeparator` controls the separator used inside `{items}`.
-- `startWithWindows` is `false` by default. Set it from Settings to launch CryptoMonitor when Windows starts.
+- `startWithWindows` is `false` by default. On Windows, set it from Settings to launch CryptoMonitor when Windows starts. On macOS, toggle `Start at login` from the status bar menu or edit the same config key.
 
 Examples:
 
@@ -163,3 +191,9 @@ Window width and appearance:
 `language` supports `zh-CN` and `en-US`. If omitted, the app uses the system UI language when it is Chinese, otherwise English.
 
 Older `taskbar...` width and font keys are still accepted for compatibility, but the app now saves the newer `window...` keys. The old taskbar anchor, offset, and `showTaskbarWindow` options are ignored by the floating-window mode.
+
+## Platform notes
+
+- Windows uses the existing C# WinForms implementation in `src/`.
+- macOS uses the native Swift/AppKit implementation in `macos/`.
+- The Windows settings dialog is not ported to macOS yet; use the status bar menu to open and reload the JSON config.

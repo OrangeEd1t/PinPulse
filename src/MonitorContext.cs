@@ -97,7 +97,7 @@ namespace CryptoMonitor
         private void ApplyConfig()
         {
             refreshTimer.Stop();
-            refreshTimer.Interval = Math.Max(30, config.GetPollIntervalSeconds()) * 1000;
+            refreshTimer.Interval = Math.Max(AppConfig.MinRefreshSeconds, config.GetPollIntervalSeconds()) * 1000;
             refreshTimer.Start();
 
             priceForm.ApplyConfig(config);
@@ -116,7 +116,6 @@ namespace CryptoMonitor
             }
 
             isRefreshing = true;
-            SafeSetStatus(Localization.Text(config, "Updating"), false);
             priceService.FetchAsync(config).ContinueWith(delegate(Task<string> task)
             {
                 if (isDisposed)
@@ -173,21 +172,6 @@ namespace CryptoMonitor
             isRefreshing = false;
             priceForm.SetText(Localization.Text(config, "ApiError"), true);
             notifyIcon.Text = TruncateNotifyText("CryptoMonitor - " + message);
-        }
-
-        private void SafeSetStatus(string text, bool isError)
-        {
-            try
-            {
-                if (!isDisposed)
-                {
-                    priceForm.SetText(text, isError);
-                }
-            }
-            catch
-            {
-                isRefreshing = false;
-            }
         }
 
         private void PostToUi(MethodInvoker action)

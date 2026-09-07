@@ -123,7 +123,7 @@ namespace CryptoMonitor
             GroupBox basicGroup = AddGroup(generalTab, Localization.Text(config, "BasicSettings"), 14, 14, 710, 150);
             languageComboBox = AddLanguageComboBox(basicGroup, 180, 28, config.Language);
             AddInputLabel(basicGroup, Localization.Text(config, "Language"), 14, 150, languageComboBox);
-            refreshNumeric = AddNumeric(basicGroup, 180, 67, 30, 86400, config.RefreshSeconds);
+            refreshNumeric = AddNumeric(basicGroup, 180, 67, AppConfig.MinRefreshSeconds, AppConfig.MaxRefreshSeconds, config.RefreshSeconds);
             AddUnitLabel(basicGroup, Localization.Text(config, "UnitSeconds"), refreshNumeric);
             AddInputLabel(basicGroup, Localization.Text(config, "RefreshSeconds"), 14, 150, refreshNumeric);
             timeoutNumeric = AddNumeric(basicGroup, 180, 106, 3, 120, config.RequestTimeoutSeconds);
@@ -286,7 +286,7 @@ namespace CryptoMonitor
             itemUseGlobalTimingCheckBox.Text = Localization.Text(config, "ItemUseGlobalTiming");
             itemUseGlobalTimingCheckBox.CheckedChanged += ItemUseGlobalTimingCheckBoxChanged;
             itemTimingGroupBox.Controls.Add(itemUseGlobalTimingCheckBox);
-            itemIntervalNumeric = AddNumeric(itemTimingGroupBox, 116, 44, 30, 86400, config.RefreshSeconds);
+            itemIntervalNumeric = AddNumeric(itemTimingGroupBox, 116, 44, AppConfig.MinRefreshSeconds, AppConfig.MaxRefreshSeconds, config.RefreshSeconds);
             AddUnitLabel(itemTimingGroupBox, Localization.Text(config, "UnitSeconds"), itemIntervalNumeric);
             AddInputLabel(itemTimingGroupBox, Localization.Text(config, "ItemInterval"), 12, 90, itemIntervalNumeric);
             itemTimeoutNumeric = AddNumeric(itemTimingGroupBox, 376, 44, 3, 120, config.RequestTimeoutSeconds);
@@ -557,7 +557,7 @@ namespace CryptoMonitor
 
             task.ContinueWith(delegate(Task<string> completed)
             {
-                if (IsDisposed)
+                if (IsDisposed || !IsHandleCreated)
                 {
                     return;
                 }
@@ -578,9 +578,9 @@ namespace CryptoMonitor
                         }
                     }));
                 }
-                catch (InvalidOperationException)
+                catch (Exception ex)
                 {
-                    // The form may have closed while the request was still running.
+                    Program.LogException(ex, "Item test callback could not reach settings UI");
                 }
             });
         }
@@ -740,7 +740,7 @@ namespace CryptoMonitor
             itemTemplateTextBox.Text = item.Template;
             bool usesGlobalTiming = item.IntervalSeconds <= 0 && item.TimeoutSeconds <= 0;
             itemUseGlobalTimingCheckBox.Checked = usesGlobalTiming;
-            itemIntervalNumeric.Value = Clamp(item.IntervalSeconds > 0 ? item.IntervalSeconds : Config.RefreshSeconds, 30, 86400);
+            itemIntervalNumeric.Value = Clamp(item.IntervalSeconds > 0 ? item.IntervalSeconds : Config.RefreshSeconds, AppConfig.MinRefreshSeconds, AppConfig.MaxRefreshSeconds);
             itemTimeoutNumeric.Value = Clamp(item.TimeoutSeconds > 0 ? item.TimeoutSeconds : Config.RequestTimeoutSeconds, 3, 120);
             itemHeadersTextBox.Text = HeadersToText(item.Headers);
             itemBodyTextBox.Text = item.Body;
