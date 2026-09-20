@@ -8,12 +8,12 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace CryptoMonitor
+namespace PinPulse
 {
-    internal sealed class TaskbarPriceForm : Form
+    internal sealed class MonitorForm : Form
     {
         private readonly string appDir;
-        private readonly CryptoPriceService priceService;
+        private readonly MonitorService monitorService;
         private readonly Timer refreshTimer;
         private readonly Timer visibilityTimer;
         private readonly Timer positionSaveTimer;
@@ -36,16 +36,16 @@ namespace CryptoMonitor
         private int minWidth = 260;
         private int maxWidth = 520;
 
-        public TaskbarPriceForm()
+        public MonitorForm()
             : this(null, null)
         {
         }
 
-        public TaskbarPriceForm(string appDir, AppConfig config)
+        public MonitorForm(string appDir, AppConfig config)
         {
             this.appDir = appDir;
             this.config = config;
-            priceService = appDir == null ? null : new CryptoPriceService();
+            monitorService = appDir == null ? null : new MonitorService();
 
             FormBorderStyle = FormBorderStyle.None;
             ShowIcon = false;
@@ -60,14 +60,14 @@ namespace CryptoMonitor
             Height = 34;
             Width = 420;
             Padding = new Padding(10, 4, 10, 4);
-            Text = "CryptoMonitor";
+            Text = "PinPulse";
 
             MouseDown += DragMouseDown;
             MouseMove += DragMouseMove;
             MouseUp += DragMouseUp;
 
             refreshTimer = new Timer();
-            refreshTimer.Tick += delegate { RefreshPrices(); };
+            refreshTimer.Tick += delegate { RefreshData(); };
 
             visibilityTimer = new Timer();
             visibilityTimer.Interval = 2000;
@@ -84,7 +84,7 @@ namespace CryptoMonitor
 
             notifyIcon = new NotifyIcon();
             notifyIcon.Icon = LoadAppIcon();
-            notifyIcon.Text = "CryptoMonitor";
+            notifyIcon.Text = "PinPulse";
             notifyIcon.Visible = appDir != null;
             notifyIcon.DoubleClick += delegate { ShowSettings(); };
 
@@ -92,7 +92,7 @@ namespace CryptoMonitor
             {
                 ApplyConfig(config);
                 SetMenu(BuildMenu());
-                Shown += delegate { RefreshPrices(); };
+                Shown += delegate { RefreshData(); };
             }
         }
 
@@ -267,7 +267,7 @@ namespace CryptoMonitor
         {
             ContextMenuStrip menu = new ContextMenuStrip();
             menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuShowHide"), null, delegate { ToggleWindow(); }));
-            menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuRefreshNow"), null, delegate { RefreshPrices(); }));
+            menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuRefreshNow"), null, delegate { RefreshData(); }));
             menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuSettings"), null, delegate { ShowSettings(); }));
             menu.Items.Add(new ToolStripMenuItem(Localization.Text(config, "MenuOpenConfigFolder"), null, delegate { OpenConfigFolder(); }));
             menu.Items.Add(new ToolStripSeparator());
@@ -275,15 +275,15 @@ namespace CryptoMonitor
             return menu;
         }
 
-        private void RefreshPrices()
+        private void RefreshData()
         {
-            if (priceService == null || config == null || isRefreshing || IsDisposed || isClosing)
+            if (monitorService == null || config == null || isRefreshing || IsDisposed || isClosing)
             {
                 return;
             }
 
             isRefreshing = true;
-            priceService.FetchAsync(config).ContinueWith(delegate(Task<string> task)
+            monitorService.FetchAsync(config).ContinueWith(delegate(Task<string> task)
             {
                 if (IsDisposed || isClosing || !IsHandleCreated)
                 {
@@ -334,13 +334,13 @@ namespace CryptoMonitor
         private void ShowText(string text)
         {
             SetText(text, false);
-            notifyIcon.Text = TruncateNotifyText("CryptoMonitor - " + text);
+            notifyIcon.Text = TruncateNotifyText("PinPulse - " + text);
         }
 
         private void ShowError(string message)
         {
             SetText(Localization.Text(config, "ApiError"), true);
-            notifyIcon.Text = TruncateNotifyText("CryptoMonitor - " + message);
+            notifyIcon.Text = TruncateNotifyText("PinPulse - " + message);
         }
 
         private void ShowSettings()
@@ -383,7 +383,7 @@ namespace CryptoMonitor
             config.Save(appDir);
             SetMenu(BuildMenu());
             ApplyConfig(config);
-            RefreshPrices();
+            RefreshData();
             RenderLayeredWindow();
         }
 

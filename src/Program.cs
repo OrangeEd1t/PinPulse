@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace CryptoMonitor
+namespace PinPulse
 {
     internal static class Program
     {
@@ -14,13 +14,13 @@ namespace CryptoMonitor
             EnableDpiAwareness();
 
             bool created;
-            using (Mutex mutex = new Mutex(true, "Local\\CryptoMonitorTaskbarWindowV2", out created))
+            using (Mutex mutex = new Mutex(true, "Local\\PinPulseTaskbarWindowV2", out created))
             {
                 if (!created)
                 {
                     MessageBox.Show(
-                        "CryptoMonitor is already running. Check the floating window or system tray icon.",
-                        "CryptoMonitor",
+                        "PinPulse is already running. Check the floating window or system tray icon.",
+                        "PinPulse",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
                     return;
@@ -33,8 +33,8 @@ namespace CryptoMonitor
                 {
                     LogException(e.Exception, "UI thread exception");
                     MessageBox.Show(
-                        "CryptoMonitor recovered from an unexpected error. Details were written to crash.log.",
-                        "CryptoMonitor",
+                        "PinPulse recovered from an unexpected error. Details were written to crash.log.",
+                        "PinPulse",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning);
                 };
@@ -54,7 +54,7 @@ namespace CryptoMonitor
                     // Startup sync should not prevent the monitor from opening.
                 }
 
-                using (TaskbarPriceForm form = new TaskbarPriceForm(appDir, config))
+                using (MonitorForm form = new MonitorForm(appDir, config))
                 {
                     Application.Run(form);
                 }

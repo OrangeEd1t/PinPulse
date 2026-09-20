@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace CryptoMonitor
+namespace PinPulse
 {
     internal static class Localization
     {
@@ -14,7 +14,7 @@ namespace CryptoMonitor
 
         static Localization()
         {
-            EnglishText["SettingsTitle"] = "CryptoMonitor Settings";
+            EnglishText["SettingsTitle"] = "PinPulse Settings";
             EnglishText["Language"] = "Language";
             EnglishText["ApiUrl"] = "API URL";
             EnglishText["BasicSettings"] = "Basic";
@@ -129,7 +129,7 @@ namespace CryptoMonitor
             EnglishText["ApiResponseNoSymbols"] = "No configured symbols were found in API response.";
             EnglishText["ApiResponseNoItems"] = "No enabled API items were found.";
 
-            ChineseText["SettingsTitle"] = "CryptoMonitor \u8bbe\u7f6e";
+            ChineseText["SettingsTitle"] = "PinPulse \u8bbe\u7f6e";
             ChineseText["Language"] = "\u8bed\u8a00";
             ChineseText["ApiUrl"] = "API \u5730\u5740";
             ChineseText["BasicSettings"] = "\u57fa\u7840";

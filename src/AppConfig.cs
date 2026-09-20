@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Web.Script.Serialization;
 
-namespace CryptoMonitor
+namespace PinPulse
 {
     internal sealed class AppConfig
     {

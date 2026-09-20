@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$ROOT/dist/macos/CryptoMonitor.app"
+APP="$ROOT/dist/macos/PinPulse.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
@@ -10,9 +10,9 @@ RESOURCES="$CONTENTS/Resources"
 rm -rf "$APP"
 mkdir -p "$MACOS" "$RESOURCES"
 
-swiftc "$ROOT/macos/CryptoMonitor.swift" \
+swiftc "$ROOT/macos/PinPulse.swift" \
   -framework Cocoa \
-  -o "$MACOS/CryptoMonitor"
+  -o "$MACOS/PinPulse"
 
 cp "$ROOT/config.example.json" "$RESOURCES/config.example.json"
 
@@ -22,13 +22,13 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key>
-  <string>CryptoMonitor</string>
+  <string>PinPulse</string>
   <key>CFBundleIdentifier</key>
-  <string>com.cryptomonitor.CryptoMonitor</string>
+  <string>com.pinpulse.PinPulse</string>
   <key>CFBundleName</key>
-  <string>CryptoMonitor</string>
+  <string>PinPulse</string>
   <key>CFBundleDisplayName</key>
-  <string>CryptoMonitor</string>
+  <string>PinPulse</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

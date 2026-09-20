@@ -1,30 +1,30 @@
 import Cocoa
 import Foundation
 
-private let appName = "CryptoMonitor"
-private let launchAgentLabel = "com.cryptomonitor.CryptoMonitor"
+private let appName = "PinPulse"
+private let launchAgentLabel = "com.pinpulse.PinPulse"
 
 @main
-final class CryptoMonitorApp: NSObject, NSApplicationDelegate {
+final class PinPulseApp: NSObject, NSApplicationDelegate {
     private let configStore = ConfigStore()
     private let startupManager = StartupManager()
-    private let priceService = PriceService()
+    private let monitorService = MonitorService()
     private var config = AppConfig.defaults()
     private var refreshTimer: Timer?
     private var isRefreshing = false
     private var currentText = "BTC --   ETH --"
     private var statusItem: NSStatusItem?
-    private var priceWindow: PriceWindowController?
+    private var monitorWindow: MonitorWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         config = configStore.load()
 
-        let window = PriceWindowController(config: config)
+        let window = MonitorWindowController(config: config)
         window.onMoved = { [weak self] origin in
             self?.saveWindowOrigin(origin)
         }
-        priceWindow = window
+        monitorWindow = window
         window.show()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -32,7 +32,7 @@ final class CryptoMonitorApp: NSObject, NSApplicationDelegate {
         rebuildMenu()
 
         syncStartupSetting()
-        refreshPrices()
+        refreshData()
         scheduleRefreshTimer()
     }
 
@@ -40,17 +40,17 @@ final class CryptoMonitorApp: NSObject, NSApplicationDelegate {
         refreshTimer?.invalidate()
         let interval = max(AppConfig.minRefreshSeconds, config.effectivePollIntervalSeconds)
         refreshTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(interval), repeats: true) { [weak self] _ in
-            self?.refreshPrices()
+            self?.refreshData()
         }
     }
 
-    private func refreshPrices() {
+    private func refreshData() {
         if isRefreshing {
             return
         }
 
         isRefreshing = true
-        priceService.fetch(config: config) { [weak self] result in
+        monitorService.fetch(config: config) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else {
                     return
@@ -69,7 +69,7 @@ final class CryptoMonitorApp: NSObject, NSApplicationDelegate {
 
     private func show(text: String, isError: Bool) {
         currentText = text
-        priceWindow?.update(text: text, isError: isError, config: config)
+        monitorWindow?.update(text: text, isError: isError, config: config)
         statusItem?.button?.title = truncateStatusText(text)
     }
 
@@ -89,7 +89,7 @@ final class CryptoMonitorApp: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makeMenuItem(localized("MenuExit"), action: #selector(quit), keyEquivalent: "q"))
         statusItem?.menu = menu
-        priceWindow?.menu = menu
+        monitorWindow?.menu = menu
     }
 
     private func makeMenuItem(_ title: String, action: Selector, keyEquivalent: String = "") -> NSMenuItem {
@@ -99,21 +99,21 @@ final class CryptoMonitorApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleWindow() {
-        priceWindow?.toggle()
+        monitorWindow?.toggle()
     }
 
     @objc private func refreshNow() {
-        refreshPrices()
+        refreshData()
     }
 
     @objc private func reloadConfig() {
         config = configStore.load()
-        priceWindow?.apply(config: config)
+        monitorWindow?.apply(config: config)
         rebuildMenu()
         syncStartupSetting()
         scheduleRefreshTimer()
         show(text: currentText, isError: false)
-        refreshPrices()
+        refreshData()
     }
 
     @objc private func openConfigFile() {
@@ -167,7 +167,7 @@ final class CryptoMonitorApp: NSObject, NSApplicationDelegate {
     }
 }
 
-private final class PriceWindowController: NSObject, NSWindowDelegate {
+private final class MonitorWindowController: NSObject, NSWindowDelegate {
     private let panel: NSPanel
     private let label: NSTextField
     var onMoved: ((CGPoint) -> Void)?
@@ -920,7 +920,7 @@ private final class StartupManager {
     }
 }
 
-private final class PriceService {
+private final class MonitorService {
     private struct CachedItem {
         let text: String
         let fetchedAt: Date
@@ -1001,7 +1001,7 @@ private final class PriceService {
         let timeout = TimeInterval(item.timeoutSeconds > 0 ? item.timeoutSeconds : fallbackTimeoutSeconds)
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = item.method.isEmpty ? "GET" : item.method
-        request.setValue("CryptoMonitor/0.1", forHTTPHeaderField: "User-Agent")
+        request.setValue("PinPulse/0.1", forHTTPHeaderField: "User-Agent")
         for (key, value) in item.headers {
             request.setValue(value, forHTTPHeaderField: key)
         }

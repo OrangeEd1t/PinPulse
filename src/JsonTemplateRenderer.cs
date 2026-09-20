@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text;
 using System.Web.Script.Serialization;
 
-namespace CryptoMonitor
+namespace PinPulse
 {
     internal static class JsonTemplateRenderer
     {

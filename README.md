@@ -1,8 +1,8 @@
-# CryptoMonitor
+# PinPulse
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-CryptoMonitor is a lightweight, always-on-top desktop monitor for Windows and macOS. It periodically requests JSON APIs and renders selected values in a draggable floating window. Although the default configuration shows BTC and ETH prices, the same item model can display exchange rates, website availability, market indicators, build status, weather, or other JSON data.
+PinPulse is a lightweight, always-on-top desktop monitor for Windows and macOS. It periodically requests JSON APIs and renders selected values in a draggable floating window. Although the default configuration shows BTC and ETH prices, the same item model can display exchange rates, website availability, market indicators, build status, weather, or other JSON data.
 
 ## Features
 
@@ -30,10 +30,10 @@ Build and run from the repository root:
 
 ```powershell
 .\build.ps1
-.\CryptoMonitor.exe
+.\PinPulse.exe
 ```
 
-The build has no NuGet dependencies. It compiles every `.cs` file under `src/` and writes `CryptoMonitor.exe` to the repository root.
+The build has no NuGet dependencies. It compiles every `.cs` file under `src/` and writes `PinPulse.exe` to the repository root.
 
 On first launch, `config.json` is created beside the executable. Only one instance can run at a time.
 
@@ -57,20 +57,20 @@ Build and run:
 
 ```bash
 bash macos/build.sh
-open dist/macos/CryptoMonitor.app
+open dist/macos/PinPulse.app
 ```
 
-The build script creates `dist/macos/CryptoMonitor.app`. On first launch, the app creates:
+The build script creates `dist/macos/PinPulse.app`. On first launch, the app creates:
 
 ```text
-~/Library/Application Support/CryptoMonitor/config.json
+~/Library/Application Support/PinPulse/config.json
 ```
 
 Use the menu bar item or right-click the floating window to refresh, show/hide the window, open or reload the configuration, toggle start at login, or exit. macOS currently uses JSON configuration rather than the Windows settings dialog.
 
 ## Configuration
 
-Start with [`config.example.json`](config.example.json). Windows writes its active configuration beside `CryptoMonitor.exe`; macOS stores it under the user Application Support directory shown above.
+Start with [`config.example.json`](config.example.json). Windows writes its active configuration beside `PinPulse.exe`; macOS stores it under the user Application Support directory shown above.
 
 ```json
 {
@@ -183,37 +183,37 @@ Program / App delegate
         │
         ├── loads config.json and schedules the shortest refresh interval
         │
-        └── Price service ──> HTTP requests ──> per-item cache
+        └── Monitor service ──> HTTP requests ──> per-item cache
                                       │
                                       └── item templates ──> combined display template
                                                                   │
                                                                   └── floating window + tray/menu bar
 ```
 
-Windows starts in `Program.Main`, which creates `TaskbarPriceForm`. The form owns the refresh timers, tray icon, settings workflow, window rendering, and `CryptoPriceService`. The service requests enabled items, caches their rendered text, and delegates JSON extraction to `JsonTemplateRenderer`.
+Windows starts in `Program.Main`, which creates `MonitorForm`. The form owns the refresh timers, tray icon, settings workflow, window rendering, and `MonitorService`. The service requests enabled items, caches their rendered text, and delegates JSON extraction to `JsonTemplateRenderer`.
 
-The macOS implementation follows the same data flow in native Swift/AppKit. Its app delegate coordinates the menu bar, floating panel, configuration store, startup manager, and price service.
+The macOS implementation follows the same data flow in native Swift/AppKit. Its app delegate coordinates the menu bar, floating panel, configuration store, startup manager, and monitor service.
 
 ## Repository structure
 
 ```text
-CryptoMonitor/
+PinPulse/
 ├── README.md                    English documentation
 ├── README.zh-CN.md              Simplified Chinese documentation
 ├── config.example.json          Shared configuration example
 ├── build.ps1                    Windows build script
 ├── src/
 │   ├── Program.cs               Windows entry point, single-instance guard, crash logging
-│   ├── TaskbarPriceForm.cs      Floating window, tray menu, timers, dragging, rendering
+│   ├── MonitorForm.cs           Floating window, tray menu, timers, dragging, rendering
 │   ├── SettingsForm.cs          Windows settings and item test UI
 │   ├── AppConfig.cs             Config loading, validation, migration, and item defaults
-│   ├── CryptoPriceService.cs    HTTP requests, item scheduling/cache, final composition
+│   ├── MonitorService.cs        HTTP requests, item scheduling/cache, final composition
 │   ├── JsonTemplateRenderer.cs  JSON path evaluation and value formatting
 │   ├── Localization.cs          Chinese and English Windows strings
 │   ├── StartupManager.cs        Windows Startup-folder shortcut management
 │   └── MonitorContext.cs        Legacy application context; not used by Program.Main
 ├── macos/
-│   ├── CryptoMonitor.swift      AppKit UI, config, networking, templates, localization
+│   ├── PinPulse.swift           AppKit UI, config, networking, templates, localization
 │   └── build.sh                 Builds the macOS `.app` bundle
 └── assets/                      Application icon sources and generated icons
 ```

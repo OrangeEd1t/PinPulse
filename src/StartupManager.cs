@@ -3,11 +3,11 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace CryptoMonitor
+namespace PinPulse
 {
     internal static class StartupManager
     {
-        private const string ShortcutName = "CryptoMonitor.lnk";
+        private const string ShortcutName = "PinPulse.lnk";
 
         public static void SetEnabled(bool enabled)
         {

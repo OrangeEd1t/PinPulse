@@ -2,8 +2,8 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $src = Join-Path $root "src"
-$out = Join-Path $root "CryptoMonitor.exe"
-$icon = Join-Path $root "assets\CryptoMonitor.ico"
+$out = Join-Path $root "PinPulse.exe"
+$icon = Join-Path $root "assets\PinPulse.ico"
 $csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
 if (!(Test-Path $csc)) {

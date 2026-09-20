@@ -1,8 +1,8 @@
-# CryptoMonitor
+# PinPulse
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-CryptoMonitor 是一款面向 Windows 和 macOS 的轻量级桌面数据监控工具。它会定时请求 JSON API，通过可配置模板提取数据，并显示在可拖动、始终置顶的悬浮窗中。默认配置展示 BTC 和 ETH 价格，但相同的监控项结构也可用于汇率、网站可用性、市场指标、构建状态、天气及其他 JSON 数据。
+PinPulse 是一款面向 Windows 和 macOS 的轻量级桌面数据监控工具。它会定时请求 JSON API，通过可配置模板提取数据，并显示在可拖动、始终置顶的悬浮窗中。默认配置展示 BTC 和 ETH 价格，但相同的监控项结构也可用于汇率、网站可用性、市场指标、构建状态、天气及其他 JSON 数据。
 
 ## 功能特点
 
@@ -30,10 +30,10 @@ CryptoMonitor 是一款面向 Windows 和 macOS 的轻量级桌面数据监控�
 
 ```powershell
 .\build.ps1
-.\CryptoMonitor.exe
+.\PinPulse.exe
 ```
 
-构建过程不依赖 NuGet。脚本会编译 `src/` 下的全部 `.cs` 文件，并在仓库根目录生成 `CryptoMonitor.exe`。
+构建过程不依赖 NuGet。脚本会编译 `src/` 下的全部 `.cs` 文件，并在仓库根目录生成 `PinPulse.exe`。
 
 首次启动会在可执行文件旁创建 `config.json`。程序仅允许同时运行一个实例。
 
@@ -57,20 +57,20 @@ Windows 操作方式：
 
 ```bash
 bash macos/build.sh
-open dist/macos/CryptoMonitor.app
+open dist/macos/PinPulse.app
 ```
 
-脚本会生成 `dist/macos/CryptoMonitor.app`。首次启动时，程序会创建：
+脚本会生成 `dist/macos/PinPulse.app`。首次启动时，程序会创建：
 
 ```text
-~/Library/Application Support/CryptoMonitor/config.json
+~/Library/Application Support/PinPulse/config.json
 ```
 
 通过菜单栏图标或右键单击悬浮窗，可以刷新、显示/隐藏窗口、打开或重新加载配置、切换登录时启动以及退出。macOS 当前通过 JSON 文件配置，尚未移植 Windows 的可视化设置窗口。
 
 ## 配置说明
 
-可从 [`config.example.json`](config.example.json) 开始修改。Windows 的有效配置位于 `CryptoMonitor.exe` 旁；macOS 的有效配置位于上文所示的用户 Application Support 目录。
+可从 [`config.example.json`](config.example.json) 开始修改。Windows 的有效配置位于 `PinPulse.exe` 旁；macOS 的有效配置位于上文所示的用户 Application Support 目录。
 
 ```json
 {
@@ -190,30 +190,30 @@ Program / App Delegate
                                                         └── 悬浮窗 + 托盘/菜单栏
 ```
 
-Windows 从 `Program.Main` 启动并创建 `TaskbarPriceForm`。该窗体负责刷新计时器、托盘图标、设置流程、窗口绘制和 `CryptoPriceService`。数据服务请求已启用的监控项、缓存渲染结果，并将 JSON 数据提取交给 `JsonTemplateRenderer`。
+Windows 从 `Program.Main` 启动并创建 `MonitorForm`。该窗体负责刷新计时器、托盘图标、设置流程、窗口绘制和 `MonitorService`。数据服务请求已启用的监控项、缓存渲染结果，并将 JSON 数据提取交给 `JsonTemplateRenderer`。
 
 macOS 版本使用原生 Swift/AppKit 实现相同的数据流，由应用委托协调菜单栏、悬浮面板、配置存储、启动项管理和数据服务。
 
 ## 代码结构
 
 ```text
-CryptoMonitor/
+PinPulse/
 ├── README.md                    英文文档
 ├── README.zh-CN.md              简体中文文档
 ├── config.example.json          两个平台共用的配置示例
 ├── build.ps1                    Windows 构建脚本
 ├── src/
 │   ├── Program.cs               Windows 入口、单实例控制、崩溃日志
-│   ├── TaskbarPriceForm.cs      悬浮窗、托盘菜单、计时器、拖动和绘制
+│   ├── MonitorForm.cs           悬浮窗、托盘菜单、计时器、拖动和绘制
 │   ├── SettingsForm.cs          Windows 设置界面和监控项测试
 │   ├── AppConfig.cs             配置读取、校验、迁移和类型默认值
-│   ├── CryptoPriceService.cs    HTTP 请求、监控项调度/缓存、结果组合
+│   ├── MonitorService.cs        HTTP 请求、监控项调度/缓存、结果组合
 │   ├── JsonTemplateRenderer.cs  JSON 路径求值和格式化
 │   ├── Localization.cs          Windows 中英文界面文本
 │   ├── StartupManager.cs        Windows 启动文件夹快捷方式管理
 │   └── MonitorContext.cs        保留的旧应用上下文；Program.Main 当前未使用
 ├── macos/
-│   ├── CryptoMonitor.swift      AppKit UI、配置、网络、模板和本地化
+│   ├── PinPulse.swift           AppKit UI、配置、网络、模板和本地化
 │   └── build.sh                 构建 macOS `.app` 包
 └── assets/                      应用图标源文件及生成结果
 ```

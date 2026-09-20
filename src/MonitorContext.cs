@@ -5,16 +5,16 @@ using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace CryptoMonitor
+namespace PinPulse
 {
     internal sealed class MonitorContext : ApplicationContext
     {
         private readonly string appDir;
-        private readonly CryptoPriceService priceService;
+        private readonly MonitorService monitorService;
         private readonly Timer refreshTimer;
         private readonly Timer positionTimer;
         private readonly NotifyIcon notifyIcon;
-        private TaskbarPriceForm priceForm;
+        private MonitorForm monitorForm;
         private AppConfig config;
         private bool isRefreshing;
         private bool isDisposed;
@@ -23,28 +23,28 @@ namespace CryptoMonitor
         {
             this.appDir = appDir;
             this.config = config;
-            priceService = new CryptoPriceService();
-            priceForm = new TaskbarPriceForm();
+            monitorService = new MonitorService();
+            monitorForm = new MonitorForm();
             notifyIcon = new NotifyIcon();
             notifyIcon.Icon = LoadAppIcon();
-            notifyIcon.Text = "CryptoMonitor";
+            notifyIcon.Text = "PinPulse";
             notifyIcon.Visible = true;
             notifyIcon.DoubleClick += delegate { ShowSettings(); };
             SetMenus();
 
             refreshTimer = new Timer();
-            refreshTimer.Tick += delegate { RefreshPrices(); };
+            refreshTimer.Tick += delegate { RefreshData(); };
 
             positionTimer = new Timer();
             positionTimer.Interval = 5000;
-            positionTimer.Tick += delegate { priceForm.EnsureShown(); };
+            positionTimer.Tick += delegate { monitorForm.EnsureShown(); };
 
             Application.Idle += FirstApplicationIdle;
         }
 
         public Form MainWindow
         {
-            get { return priceForm; }
+            get { return monitorForm; }
         }
 
         protected override void Dispose(bool disposing)
@@ -56,7 +56,7 @@ namespace CryptoMonitor
                 positionTimer.Dispose();
                 notifyIcon.Visible = false;
                 notifyIcon.Dispose();
-                priceForm.Dispose();
+                monitorForm.Dispose();
             }
 
             base.Dispose(disposing);
@@ -65,7 +65,7 @@ namespace CryptoMonitor
         private void SetMenus()
         {
             ContextMenuStrip menu = BuildMenu();
-            priceForm.SetMenu(menu);
+            monitorForm.SetMenu(menu);
             notifyIcon.ContextMenuStrip = menu;
         }
 
@@ -73,7 +73,7 @@ namespace CryptoMonitor
         {
             ContextMenuStrip menu = new ContextMenuStrip();
             ToolStripMenuItem showHideItem = new ToolStripMenuItem(Localization.Text(config, "MenuShowHide"), null, delegate { ToggleTaskbarWindow(); });
-            ToolStripMenuItem refreshItem = new ToolStripMenuItem(Localization.Text(config, "MenuRefreshNow"), null, delegate { RefreshPrices(); });
+            ToolStripMenuItem refreshItem = new ToolStripMenuItem(Localization.Text(config, "MenuRefreshNow"), null, delegate { RefreshData(); });
             ToolStripMenuItem settingsItem = new ToolStripMenuItem(Localization.Text(config, "MenuSettings"), null, delegate { ShowSettings(); });
             ToolStripMenuItem configItem = new ToolStripMenuItem(Localization.Text(config, "MenuOpenConfigFolder"), null, delegate { OpenConfigFolder(); });
             ToolStripMenuItem exitItem = new ToolStripMenuItem(Localization.Text(config, "MenuExit"), null, delegate { Exit(); });
@@ -91,7 +91,7 @@ namespace CryptoMonitor
         {
             Application.Idle -= FirstApplicationIdle;
             ApplyConfig();
-            RefreshPrices();
+            RefreshData();
         }
 
         private void ApplyConfig()
@@ -100,15 +100,15 @@ namespace CryptoMonitor
             refreshTimer.Interval = Math.Max(AppConfig.MinRefreshSeconds, config.GetPollIntervalSeconds()) * 1000;
             refreshTimer.Start();
 
-            priceForm.ApplyConfig(config);
+            monitorForm.ApplyConfig(config);
             config.ShowTaskbarWindow = true;
-            if (!priceForm.Visible)
+            if (!monitorForm.Visible)
             {
-                priceForm.Show();
+                monitorForm.Show();
             }
         }
 
-        private void RefreshPrices()
+        private void RefreshData()
         {
             if (isDisposed || isRefreshing)
             {
@@ -116,7 +116,7 @@ namespace CryptoMonitor
             }
 
             isRefreshing = true;
-            priceService.FetchAsync(config).ContinueWith(delegate(Task<string> task)
+            monitorService.FetchAsync(config).ContinueWith(delegate(Task<string> task)
             {
                 if (isDisposed)
                 {
@@ -158,8 +158,8 @@ namespace CryptoMonitor
             }
 
             isRefreshing = false;
-            priceForm.SetText(text, false);
-            notifyIcon.Text = TruncateNotifyText("CryptoMonitor - " + text);
+            monitorForm.SetText(text, false);
+            notifyIcon.Text = TruncateNotifyText("PinPulse - " + text);
         }
 
         private void ShowError(string message)
@@ -170,21 +170,21 @@ namespace CryptoMonitor
             }
 
             isRefreshing = false;
-            priceForm.SetText(Localization.Text(config, "ApiError"), true);
-            notifyIcon.Text = TruncateNotifyText("CryptoMonitor - " + message);
+            monitorForm.SetText(Localization.Text(config, "ApiError"), true);
+            notifyIcon.Text = TruncateNotifyText("PinPulse - " + message);
         }
 
         private void PostToUi(MethodInvoker action)
         {
             try
             {
-                if (isDisposed || priceForm == null || priceForm.IsDisposed || !priceForm.IsHandleCreated)
+                if (isDisposed || monitorForm == null || monitorForm.IsDisposed || !monitorForm.IsHandleCreated)
                 {
                     isRefreshing = false;
                     return;
                 }
 
-                priceForm.BeginInvoke((MethodInvoker)delegate
+                monitorForm.BeginInvoke((MethodInvoker)delegate
                 {
                     try
                     {
@@ -220,19 +220,19 @@ namespace CryptoMonitor
             config.Save(appDir);
             SetMenus();
             ApplyConfig();
-            RefreshPrices();
+            RefreshData();
         }
 
         private void ToggleTaskbarWindow()
         {
-            if (priceForm.Visible)
+            if (monitorForm.Visible)
             {
-                priceForm.Hide();
+                monitorForm.Hide();
                 return;
             }
 
-            priceForm.Show();
-            priceForm.EnsureShown();
+            monitorForm.Show();
+            monitorForm.EnsureShown();
         }
 
         private void OpenConfigFolder()
@@ -242,9 +242,9 @@ namespace CryptoMonitor
 
         private void Exit()
         {
-            if (priceForm != null && !priceForm.IsDisposed)
+            if (monitorForm != null && !monitorForm.IsDisposed)
             {
-                priceForm.Close();
+                monitorForm.Close();
             }
             else
             {

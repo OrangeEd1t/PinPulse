@@ -7,9 +7,9 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 
-namespace CryptoMonitor
+namespace PinPulse
 {
-    internal sealed class CryptoPriceService
+    internal sealed class MonitorService
     {
         private readonly Dictionary<string, CachedApiItem> cachedItems = new Dictionary<string, CachedApiItem>(StringComparer.OrdinalIgnoreCase);
 
@@ -29,7 +29,7 @@ namespace CryptoMonitor
             request.Method = String.IsNullOrEmpty(item.Method) ? "GET" : item.Method.ToUpperInvariant();
             request.Timeout = timeoutSeconds * 1000;
             request.ReadWriteTimeout = timeoutSeconds * 1000;
-            request.UserAgent = "CryptoMonitor/0.1";
+            request.UserAgent = "PinPulse/0.1";
 
             if (item.Headers != null)
             {
@@ -148,7 +148,7 @@ namespace CryptoMonitor
                 request.Method = "GET";
                 request.Timeout = timeoutSeconds * 1000;
                 request.ReadWriteTimeout = timeoutSeconds * 1000;
-                request.UserAgent = "CryptoMonitor/0.1";
+                request.UserAgent = "PinPulse/0.1";
                 using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
                 {
                     stopwatch.Stop();

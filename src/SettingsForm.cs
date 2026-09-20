@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace CryptoMonitor
+namespace PinPulse
 {
     internal sealed class SettingsForm : Form
     {
@@ -337,7 +337,7 @@ namespace CryptoMonitor
             string displayTemplate = GetDisplayTemplate();
             if (displayTemplate.IndexOf("{items}", StringComparison.Ordinal) < 0)
             {
-                MessageBox.Show(this, Localization.Text(Config, "ValidationDisplayTemplateItemsRequired"), "CryptoMonitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, Localization.Text(Config, "ValidationDisplayTemplateItemsRequired"), "PinPulse", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 DialogResult = DialogResult.None;
                 return;
             }
@@ -356,7 +356,7 @@ namespace CryptoMonitor
 
             if (!HasEnabledItems(editingItems))
             {
-                MessageBox.Show(this, Localization.Text(Config, "ValidationApiItemsRequired"), "CryptoMonitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, Localization.Text(Config, "ValidationApiItemsRequired"), "PinPulse", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 DialogResult = DialogResult.None;
                 return;
             }
@@ -367,7 +367,7 @@ namespace CryptoMonitor
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, Localization.Text(Config, "StartupUpdateFailed") + Environment.NewLine + ex.Message, "CryptoMonitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, Localization.Text(Config, "StartupUpdateFailed") + Environment.NewLine + ex.Message, "PinPulse", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 DialogResult = DialogResult.None;
                 return;
             }
@@ -548,7 +548,7 @@ namespace CryptoMonitor
             Task<string> task = Task.Factory.StartNew<string>(delegate
             {
                 string response;
-                string rendered = CryptoPriceService.RenderItem(item, Convert.ToInt32(timeoutNumeric.Value), out response);
+                string rendered = MonitorService.RenderItem(item, Convert.ToInt32(timeoutNumeric.Value), out response);
                 return Localization.Text(Config, "PreviewRendered") + Environment.NewLine +
                     rendered + Environment.NewLine + Environment.NewLine +
                     Localization.Text(Config, "PreviewResponse") + Environment.NewLine +
@@ -667,7 +667,7 @@ namespace CryptoMonitor
             {
                 if (showErrors)
                 {
-                    MessageBox.Show(this, Localization.Text(Config, "ValidationHeadersInvalid") + Environment.NewLine + headerError, "CryptoMonitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(this, Localization.Text(Config, "ValidationHeadersInvalid") + Environment.NewLine + headerError, "PinPulse", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
             }
@@ -685,7 +685,7 @@ namespace CryptoMonitor
 
             if (showErrors && item.Url.Length == 0)
             {
-                MessageBox.Show(this, Localization.Text(Config, "ValidationApiUrlRequired"), "CryptoMonitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, Localization.Text(Config, "ValidationApiUrlRequired"), "PinPulse", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
@@ -707,14 +707,14 @@ namespace CryptoMonitor
                 if (item != null && item.Enabled && item.Type == ApiItemConfig.TypeCoin && AppConfig.AlternativeMeDataId(item.Symbol).Length == 0)
                 {
                     ReloadItemList(i);
-                    MessageBox.Show(this, Localization.Text(Config, "ValidationCoinSymbolUnsupported"), "CryptoMonitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(this, Localization.Text(Config, "ValidationCoinSymbolUnsupported"), "PinPulse", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
 
                 if (item != null && item.Enabled && String.IsNullOrWhiteSpace(item.Url))
                 {
                     ReloadItemList(i);
-                    MessageBox.Show(this, Localization.Text(Config, "ValidationApiUrlRequired"), "CryptoMonitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(this, Localization.Text(Config, "ValidationApiUrlRequired"), "PinPulse", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }
             }
